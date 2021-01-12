@@ -12,8 +12,8 @@ https://arxiv.org/pdf/2009.06138.pdf
 ### ProtoTree:
 https://arxiv.org/pdf/2012.02046.pdf
 
-### Prototype Concept Learning:
-https://github.com/orlrworkshop/orlrworkshop.github.io/blob/master/pdf/ORLR_18.pdf
+### Disentangling 3D Prototype Concept Learning:
+https://arxiv.org/pdf/2011.03367.pdf
 
 ### Concept Whitening:
 https://arxiv.org/pdf/2002.01650.pdf
