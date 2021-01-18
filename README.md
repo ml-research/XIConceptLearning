@@ -9,6 +9,9 @@ https://arxiv.org/pdf/2006.15055.pdf
 ### Scouter:
 https://arxiv.org/pdf/2009.06138.pdf
 
+### IODINE:
+https://arxiv.org/pdf/1903.00450.pdf
+
 ### ProtoTree:
 https://arxiv.org/pdf/2012.02046.pdf
 
