@@ -29,16 +29,16 @@ config = dict({
     'device': 'cuda:10',
     
     'save_step': 100,
-    'print_step': 100,
+    'print_step': 10,
     'display_step': 1,
 
     'lambda_min_proto': 10, # decode protoype with min distance to z
     'lambda_ae': 10, # decode z
     'lambda_r1': 1,
     'lambda_r2': 1,
-    'lambda_r3': 1,
-    'lambda_r4': 1,
-    'lambda_r5': 0, # 1e-2,
+    'lambda_r3': 0,
+    'lambda_r4': 0,
+    'lambda_r5': 1, # 1e-2,
 
     'learning_rate': 1e-3,
     'training_epochs': 5000,
@@ -138,7 +138,21 @@ for e in range(0, config['training_epochs']):
         # diagonal would be distance to itself, distance matrix is symmetric
         # r5_loss = -torch.mean(torch.tril(list_of_distances(prototype_vectors, prototype_vectors), diagonal=1))
         # r5_loss = -torch.mean(list_of_distances(prototype_vectors, prototype_vectors))
+        
+        # diversity regularization
+        # draw prototypes away from each other
+        # Source: Interpretable and Steerable Sequence Learning via Prototypes
+        d_min = 2 # 1 or 2 according to paper
+        relu = torch.nn.ReLU()
         r5_loss = torch.zeros((1,)).to(config['device'])
+        for i in range(prototype_vectors.shape[0]):
+            for j in range(i+1, prototype_vectors.shape[0]):
+                max_distance = relu(d_min - torch.linalg.norm(prototype_vectors[i] - prototype_vectors[j]))
+                r5_loss += max_distance**2
+
+        # r5_tmp = d_min - torch.tril(list_of_distances(prototype_vectors.view(-1,1), prototype_vectors.view(-1,1)), diagonal=1)
+        # r5_tmp = torch.sum(relu(r5_tmp)**2)
+        # print(r5_loss, r5_tmp)
 
         rec = model.forward_dec(feature_vectors_z)
         ae_loss = torch.mean(list_of_norms(rec-imgs))
@@ -180,8 +194,7 @@ for e in range(0, config['training_epochs']):
         print(f'epoch {e} - loss {loss.item():2.4f} - time/epoch {(time.time()-start):2.2f}')
         loss_summary = ''
         for key in loss_dict.keys():
-            loss_summary += f'{key} {loss_dict[key]:2.2f} '
-        # print(f'ae_proto_loss {round(ae_proto_loss.item(),3)} ae_loss {round(ae_loss.item(),3)} r1 {round(r1_loss.item(),3)} r2 {round(r2_loss.item(),3)} r3 {round(r3_loss.item(),3)} r4 {round(r4_loss.item(),3)} r5 {round(r5_loss.item(),3)}')
+            loss_summary += f'{key} {loss_dict[key]:2.4f} '
         print(loss_summary)
         
     if (e+1) % config['save_step'] == 0 or e == config['training_epochs'] - 1:
