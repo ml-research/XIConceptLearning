@@ -61,16 +61,16 @@ class RAE(nn.Module):
 
         # output layer
         # transforms prototype proximities into decodeable dimensions
-        self.fc = nn.Linear(n_prototype_vectors, self.input_dim_prototype)
+        # self.fc = nn.Linear(n_prototype_vectors, self.input_dim_prototype)
 
-        self.feature_vectors = None
+        # self.feature_vectors_z = None
 
     def forward(self, x):
         out = self.enc(x)
-        self.feature_vectors = out
+        # self.feature_vectors_z = out
         out = self.prototype_layer(out.view(-1,self.input_dim_prototype))
-        out = self.fc(out)
-        out = out.reshape(x.shape[0], self.enc_out.shape[1], self.enc_out.shape[2], self.enc_out.shape[3])
+        # out = self.fc(out)
+        # out = out.reshape(x.shape[0], self.enc_out.shape[1], self.enc_out.shape[2], self.enc_out.shape[3])
         return out
 
     def forward_dec(self, x):

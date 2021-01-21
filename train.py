@@ -26,14 +26,14 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 
 config = dict({
-    'device': 'cuda:14',
+    'device': 'cuda:10',
     
     'save_step': 100,
     'print_step': 100,
     'display_step': 1,
 
-    'lambda_ae_proto': 10,
-    'lambda_ae': 0,
+    'lambda_min_proto': 10, # decode protoype with min distance to z
+    'lambda_ae': 10, # decode z
     'lambda_r1': 1,
     'lambda_r2': 1,
     'lambda_r3': 1,
@@ -96,7 +96,7 @@ rtpt.start()
 for e in range(0, config['training_epochs']):
     max_iter = len(data_loader)
     start = time.time()
-    loss_dict = dict({'ae_proto_loss':0, 'r1_loss':0, 'r2_loss':0, 'r3_loss':0, 'r4_loss':0, 'r5_loss':0, 'ae_loss':0, 'loss':0})
+    loss_dict = dict({'min_proto_loss':0, 'r1_loss':0, 'r2_loss':0, 'r3_loss':0, 'r4_loss':0, 'r5_loss':0, 'ae_loss':0, 'loss':0})
 
     for i, batch in enumerate(data_loader):
         imgs = batch[0]
@@ -115,31 +115,38 @@ for e in range(0, config['training_epochs']):
         pred = model.forward(imgs)
 
         prototype_vectors = model.prototype_layer.prototype_vectors
-        feature_vectors = model.feature_vectors
+        feature_vectors_z = model.enc.forward(imgs)
+        
+        # get prototype with min distance to z
+        min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
+
 
         # draws prototype close to training example
-        r1_loss = torch.mean(torch.min(list_of_distances(prototype_vectors, feature_vectors.view(-1, model.input_dim_prototype)), dim=1)[0])
+        r1_loss = torch.mean(torch.min(list_of_distances(prototype_vectors, feature_vectors_z.view(-1, model.input_dim_prototype)), dim=1)[0])
         # draws encoding close to prototype
-        r2_loss = torch.mean(torch.min(list_of_distances(feature_vectors.view(-1, model.input_dim_prototype ), prototype_vectors), dim=1)[0])
+        r2_loss = torch.mean(torch.min(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype ), prototype_vectors), dim=1)[0])
         
         # draws encoding before the prototype layer close to encoding after the prototype layer
-        r3_loss = torch.mean(torch.min(list_of_distances(feature_vectors.view(-1, model.input_dim_prototype), pred.view(-1, model.input_dim_prototype)), dim=1)[0])
+        # r3_loss = torch.mean(torch.min(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype), pred.view(-1, model.input_dim_prototype)), dim=1)[0])
         # draws encoding after the prototype layer close to encoding before the prototype layer
-        r4_loss = torch.mean(torch.min(list_of_distances(pred.view(-1, model.input_dim_prototype), feature_vectors.view(-1, model.input_dim_prototype )), dim=1)[0])
+        # r4_loss = torch.mean(torch.min(list_of_distances(pred.view(-1, model.input_dim_prototype), feature_vectors_z.view(-1, model.input_dim_prototype )), dim=1)[0])
+        r3_loss = torch.zeros((1,)).to(config['device'])
+        r4_loss = torch.zeros((1,)).to(config['device'])
 
         # draw prototypes away from each other
         # get absolute values of lower triangle without diagonal (distances between prototype_vectors)
         # diagonal would be distance to itself, distance matrix is symmetric
         # r5_loss = -torch.mean(torch.tril(list_of_distances(prototype_vectors, prototype_vectors), diagonal=1))
-        r5_loss = -torch.mean(list_of_distances(prototype_vectors, prototype_vectors))
+        # r5_loss = -torch.mean(list_of_distances(prototype_vectors, prototype_vectors))
+        r5_loss = torch.zeros((1,)).to(config['device'])
 
-        rec = model.forward_dec(feature_vectors)
+        rec = model.forward_dec(feature_vectors_z)
         ae_loss = torch.mean(list_of_norms(rec-imgs))
 
-        rec_proto = model.forward_dec(pred)
-        ae_proto_loss = torch.mean(list_of_norms(rec-imgs))
+        rec_proto = model.forward_dec(min_prototype_vector.reshape(feature_vectors_z.shape))
+        min_proto_loss = torch.mean(list_of_norms(rec-imgs))
 
-        loss = config['lambda_ae_proto'] * ae_proto_loss +\
+        loss = config['lambda_min_proto'] * min_proto_loss +\
                 config['lambda_r1'] * r1_loss +\
                 config['lambda_r2'] * r2_loss +\
                 config['lambda_r3'] * r3_loss +\
@@ -151,7 +158,7 @@ for e in range(0, config['training_epochs']):
         
         optimizer.step()
 
-        loss_dict['ae_proto_loss'] += ae_proto_loss.item()
+        loss_dict['min_proto_loss'] += min_proto_loss.item()
         loss_dict['r1_loss'] += r1_loss.item()
         loss_dict['r2_loss'] += r2_loss.item()
         loss_dict['r3_loss'] += r3_loss.item()
@@ -220,12 +227,16 @@ for e in range(0, config['training_epochs']):
 
         examples_to_show = 10
         
+        # decoded image
         encoded = model.enc.forward(imgs[:examples_to_show])
         decoded = model.dec.forward(encoded)
 
-        encoded_proto = model.forward(imgs[:examples_to_show])
-        decoded_proto = model.dec.forward(encoded_proto)
-    
+        # decoded prototype with min distance to z / image
+        pred = model.forward(imgs[:examples_to_show])
+        prototype_vectors = model.prototype_layer.prototype_vectors
+        min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
+        decoded_proto = model.dec.forward(min_prototype_vector.reshape(encoded.shape))
+        
         decoded = decoded.detach().cpu()
         decoded_proto = decoded_proto.detach().cpu()
         imgs = imgs.detach().cpu()
