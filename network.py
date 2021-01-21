@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from autoencoder_helpers import *
 
 class Encoder(nn.Module):
     def __init__(self, input_dim=1, filter_dim=32, output_dim=10):
@@ -85,14 +86,6 @@ class PrototypeLayer(nn.Module):
 
     def forward(self, x):
         return list_of_distances(x, self.prototype_vectors)
-
-def list_of_norms(x):
-    return torch.sum(torch.pow(x, 2),dim=1)
-
-def list_of_distances(x, y):
-    xx = list_of_norms(x).view(-1, 1)
-    yy = list_of_norms(y).view(1, -1)
-    return xx + yy - 2 * torch.matmul(x, torch.transpose(y, 0, 1))
 
 class DenseLayerSoftmax(nn.Module):
     def __init__(self, input_dim=10, output_dim=10):

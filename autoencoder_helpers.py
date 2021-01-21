@@ -27,10 +27,14 @@ def list_of_distances(X, Y):
     where the distance metric used is the sqared euclidean distance.
     The computation is achieved through a clever use of broadcasting.
     '''
-    XX = torch.reshape(list_of_norms(X), shape=(-1, 1))
-    YY = torch.reshape(list_of_norms(Y), shape=(1, -1))
-    output = XX + YY - 2 * torch.matmul(X, torch.transpose(Y))
-    return output
+    # XX = torch.reshape(list_of_norms(X), shape=(-1, 1))
+    # YY = torch.reshape(list_of_norms(Y), shape=(1, -1))
+    # output = XX + YY - 2 * torch.matmul(X, torch.transpose(Y))
+    # return output
+
+    XX = list_of_norms(X).view(-1, 1)
+    YY = list_of_norms(Y).view(1, -1)
+    return XX + YY - 2 * torch.matmul(X, torch.transpose(Y, 0, 1))
 
 def list_of_norms(X):
     '''
@@ -38,7 +42,7 @@ def list_of_norms(X):
         [d(x_1, x_1), d(x_2, x_2), ... , d(x_n, x_n)], where the distance
     function is the squared euclidean distance.
     '''
-    return torch.reduce_sum(torch.pow(X, 2), axis=1)
+    return torch.sum(torch.pow(X, 2), axis=1)
 
 def print_and_write(str, file):
     '''
