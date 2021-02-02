@@ -215,7 +215,8 @@ for e in range(0, config['training_epochs']):
             s = softmin(p_z)
             feature_vectors_softmin = s@prototype_vectors
             # rec_proto = torch.einsum('bi, ij -> bij', s, prototype_vectors)
-            rec_proto = model.forward_dec(feature_vectors_softmin.reshape(feature_vectors_z.shape))
+            rec_proto = model.dec.forward(feature_vectors_softmin.reshape(feature_vectors_z.shape))
+            
             mse = torch.nn.MSELoss()
             if config['mse']:
                 softmin_proto_recon_loss = mse(rec_proto, imgs)
@@ -224,7 +225,7 @@ for e in range(0, config['training_epochs']):
 
         z_recon_loss = torch.zeros((1,)).to(config['device'])
         if config['lambda_z'] != 0:
-            rec = model.forward_dec(feature_vectors_z)
+            rec = model.dec.forward(feature_vectors_z)
             mse = torch.nn.MSELoss()
             if config['mse']:
                 z_recon_loss = mse(rec, imgs)
@@ -237,7 +238,7 @@ for e in range(0, config['training_epochs']):
         min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
         min_proto_recon_loss = torch.zeros((1,)).to(config['device'])
         if config['lambda_min_proto'] != 0:
-            rec_proto = model.forward_dec(min_prototype_vector.reshape(feature_vectors_z.shape))
+            rec_proto = model.dec.forward(min_prototype_vector.reshape(feature_vectors_z.shape))
             mse = torch.nn.MSELoss()
             if config['mse']:
                 min_proto_recon_loss = mse(rec_proto, imgs)
@@ -297,7 +298,7 @@ for e in range(0, config['training_epochs']):
         torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
         # decode prototype vectors
-        prototype_imgs = model.forward_dec(prototype_vectors.reshape((-1,config['n_z'],2,2))).detach().cpu()
+        prototype_imgs = model.dec.forward(prototype_vectors.reshape((-1,config['n_z'],2,2))).detach().cpu()
 
         # visualize the prototype images
         n_cols = 3
@@ -338,14 +339,32 @@ for e in range(0, config['training_epochs']):
         pred = model.forward(imgs[:examples_to_show])
         prototype_vectors = model.prototype_layer.prototype_vectors
         min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
-        decoded_proto = model.dec.forward(min_prototype_vector.reshape(encoded.shape))
+        decoded_proto_min = model.dec.forward(min_prototype_vector.reshape(encoded.shape))
         
+        # decoded softmin weighted prototype
+        softmin = torch.nn.Softmin(dim=1)
+        p_z = list_of_distances(encoded.view(-1, model.input_dim_prototype), prototype_vectors, norm='l2')
+        # std = (config['training_epochs'] - e) / config['training_epochs']
+        # p_z += torch.normal(torch.zeros_like(p_z), std)
+        s = softmin(p_z)
+        softmin_prototype_vector = s@prototype_vectors
+
+        decoded_proto_softmin = model.dec.forward(softmin_prototype_vector.reshape(encoded.shape))
+
         decoded = decoded.detach().cpu()
-        decoded_proto = decoded_proto.detach().cpu()
+        decoded_proto_min = decoded_proto_min.detach().cpu()
+        decoded_proto_softmin = decoded_proto_softmin.detach().cpu()
         imgs = imgs.detach().cpu()
 
         # compare original images to their reconstructions
-        f, a = plt.subplots(3, examples_to_show, figsize=(examples_to_show, 3))
+        n_rows = 4
+        f, a = plt.subplots(n_rows, examples_to_show, figsize=(examples_to_show, n_rows))
+
+        a[0][0].text(0,-2, s='input', fontsize=10)
+        a[1][0].text(0,-2, s='recon z', fontsize=10)
+        a[2][0].text(0,-2, s='recon min proto', fontsize=10)
+        a[3][0].text(0,-2, s='recon softmin proto', fontsize=10)
+
         for i in range(examples_to_show):
             a[0][i].imshow(imgs[i].reshape(config['img_shape']).permute(1,2,0).squeeze(),
                             cmap='gray',
@@ -357,10 +376,15 @@ for e in range(0, config['training_epochs']):
                             interpolation='none')
             a[1][i].axis('off')
             
-            a[2][i].imshow(decoded_proto[i].reshape(config['img_shape']).permute(1,2,0).squeeze(), 
+            a[2][i].imshow(decoded_proto_min[i].reshape(config['img_shape']).permute(1,2,0).squeeze(), 
                             cmap='gray',
                             interpolation='none')
             a[2][i].axis('off')
+
+            a[3][i].imshow(decoded_proto_softmin[i].reshape(config['img_shape']).permute(1,2,0).squeeze(), 
+                            cmap='gray',
+                            interpolation='none')
+            a[3][i].axis('off')
 
         img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + '_decoding_result' + '.png')
         plt.savefig(img_save_path,

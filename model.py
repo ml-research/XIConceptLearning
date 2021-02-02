@@ -34,9 +34,6 @@ class CAE(nn.Module):
         out = self.fc(out)
         return out
 
-    def forward_dec(self, x):
-        out = self.dec(x)
-        return out
 
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32, n_prototype_vectors=10):
@@ -71,8 +68,4 @@ class RAE(nn.Module):
         out = self.prototype_layer(out.view(-1,self.input_dim_prototype))
         # out = self.fc(out)
         # out = out.reshape(x.shape[0], self.enc_out.shape[1], self.enc_out.shape[2], self.enc_out.shape[3])
-        return out
-
-    def forward_dec(self, x):
-        out = self.dec(x)
         return out
