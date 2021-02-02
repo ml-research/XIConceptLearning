@@ -2,6 +2,8 @@ import torch
 import torchvision
 from torchvision import transforms
 
+import numpy as np
+
 from model import RAE
 from network import *
 from autoencoder_helpers import makedirs
@@ -25,38 +27,49 @@ import torchvision.transforms.functional as TF
 
 from PIL import Image
 
+import json
+
+from torch.optim import lr_scheduler
+
 config = dict({
-    'device': 'cuda:10',
+    'device': 'cuda:13',
     
-    'save_step': 100,
+    'save_step': 50,
     'print_step': 10,
     'display_step': 1,
 
-    'lambda_min_proto': 10, # decode protoype with min distance to z
-    'lambda_ae': 10, # decode z
-    'lambda_r1': 1,
-    'lambda_r2': 1,
-    'lambda_r3': 0,
-    'lambda_r4': 0,
-    'lambda_r5': 1, # 1e-2,
+    'mse': True,               # use MSE instead of mean(list_of_norms) for reconstruction loss
+
+    'lambda_min_proto': 0,      # decode protoype with min distance to z
+    'lambda_z': 0,              # decode z
+    'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
+    'lambda_r1': 1e-2,          # draws prototype close to training example
+    'lambda_r2': 0,             # draws encoding close to prototype
+    'lambda_r3': 0,             # not used
+    'lambda_r4': 0,             # not used
+    'lambda_r5': 0,             # diversity penalty
+    'diversity_threshold': 2,   # 1-2 suggested by paper
 
     'learning_rate': 1e-3,
-    'training_epochs': 5000,
-    'batch_size': 500,
-    'n_workers': 4,
+    'training_epochs': 500,
+    'lr_scheduler': True,
+    'batch_size': 1000,
+    'n_workers': 2,
 
     'n_prototype_vectors': 10,
-
+    'filter_dim': 32,
+    'n_z': 10,
     'batch_elastic_transform': False,
     'sigma': 4,
     'alpha': 20,
 
-    'img_shape': (28,28),
-
     'experiment_name': '',
     'results_dir': 'results',
     'model_dir': 'states',
-    'img_dir': 'imgs'
+    'img_dir': 'imgs',
+
+    'dataset': 'mnist',       # 'toycolor' or 'mnist' or 'toycolorshape'
+    'init': 'xavier'
 })
 
 if config['experiment_name'] == '':
@@ -68,27 +81,69 @@ config['img_dir'] = os.path.join(config['results_dir'], config['img_dir'])
 makedirs(config['model_dir'])
 makedirs(config['img_dir'])
 
-import json
-with open(os.path.join(config['results_dir'], 'args.txt'), 'w') as json_file:
-    json.dump(config, json_file, indent=2)
-
-
 writer = SummaryWriter(log_dir=config['results_dir'])  
 
 # dataloader setup
-mnist_data = torchvision.datasets.MNIST(root='dataset', train=True, download=True, transform=transforms.ToTensor())
-mnist_data_test = torchvision.datasets.MNIST(root='dataset', train=False, download=True, transform=transforms.ToTensor())
+if config['dataset'] == 'mnist': 
+    mnist_data = torchvision.datasets.MNIST(root='dataset', train=True, download=True, transform=transforms.ToTensor())
+    mnist_data_test = torchvision.datasets.MNIST(root='dataset', train=False, download=True, transform=transforms.ToTensor())
+    
+    config['img_shape'] = (1,28,28)
+    config['n_prototype_vectors'] = 10
+    print('Overriding img_shape and n_prototype_vectors')
+    
+    dataset = torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
 
-mnist_data_concat = torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
+elif config['dataset'] == 'toycolor':
+    train_data = np.load('data/train_toydata.npy')
+    train_data = torch.Tensor(train_data).permute(0,3,1,2)
+    train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-data_loader = torch.utils.data.DataLoader(mnist_data_concat, batch_size=config['batch_size'], shuffle=True, num_workers=config['n_workers'], pin_memory=True)
+    train_labels = np.load('data/train_toydata_labels.npy')
+    train_labels = torch.Tensor(train_labels)
+
+    config['img_shape'] = (3,28,28)
+    config['n_prototype_vectors'] = train_labels.shape[1]
+    print('Overriding img_shape and n_prototype_vectors')
+
+    dataset = torch.utils.data.TensorDataset(train_data, train_labels)
+
+elif config['dataset'] == 'toycolorshape':
+    train_data = np.load('data/train_toydata_color_shape.npy')
+    train_data = torch.Tensor(train_data).permute(0,3,1,2)
+    train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
+
+    train_labels = np.load('data/train_toydata_color_shape_labels.npy')
+    train_labels = torch.Tensor(train_labels)
+
+    config['img_shape'] = (3,28,28)
+    config['n_prototype_vectors'] = train_labels.shape[1]
+    print('Overriding img_shape and n_prototype_vectors')
+
+    dataset = torch.utils.data.TensorDataset(train_data, train_labels)
+
+else:
+    print('Select valid dataset please: mnist, toycolor')
+    exit(42)
+
+data_loader = torch.utils.data.DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, num_workers=config['n_workers'], pin_memory=True)
+
+# store config
+with open(os.path.join(config['results_dir'], 'args.json'), 'w') as json_file:
+    json.dump(config, json_file, indent=2)
 
 # model setup
-model = RAE(input_dim=(1,1,config['img_shape'][0], config['img_shape'][1]), n_prototype_vectors=config['n_prototype_vectors'])
+model = RAE(input_dim=(1,config['img_shape'][0],config['img_shape'][1], config['img_shape'][2]), n_z=config['n_z'], filter_dim=config['filter_dim'], n_prototype_vectors=config['n_prototype_vectors'])
 model = model.to(config['device'])
 
 # optimizer setup
 optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
+
+# learning rate scheduler
+if config['lr_scheduler']:
+    # TODO: try LambdaLR
+    num_steps = len(data_loader) * config['training_epochs']
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
 
 rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['training_epochs'])
 rtpt.start()
@@ -96,7 +151,7 @@ rtpt.start()
 for e in range(0, config['training_epochs']):
     max_iter = len(data_loader)
     start = time.time()
-    loss_dict = dict({'min_proto_loss':0, 'r1_loss':0, 'r2_loss':0, 'r3_loss':0, 'r4_loss':0, 'r5_loss':0, 'ae_loss':0, 'loss':0})
+    loss_dict = dict({'z_recon_loss':0, 'min_proto_recon_loss':0, 'softmin_proto_recon_loss':0, 'r1_loss':0, 'r2_loss':0, 'r3_loss':0, 'r4_loss':0, 'r5_loss':0, 'loss':0})
 
     for i, batch in enumerate(data_loader):
         imgs = batch[0]
@@ -104,7 +159,7 @@ for e in range(0, config['training_epochs']):
         # store original size to put it back into orginial shape after transformation
         imgs_shape = imgs.shape
         if config['batch_elastic_transform']:
-            imgs = batch_elastic_transform(imgs.view(config['batch_size'], -1), sigma=config['sigma'], alpha=config['alpha'], height=config['img_shape'][0], width=config['img_shape'][1])
+            imgs = batch_elastic_transform(imgs.view(config['batch_size'], -1), sigma=config['sigma'], alpha=config['alpha'], height=config['img_shape'][1], width=config['img_shape'][2])
             imgs = torch.reshape(torch.tensor(imgs), imgs_shape)
         imgs = imgs.to(config['device'])
 
@@ -117,68 +172,103 @@ for e in range(0, config['training_epochs']):
         prototype_vectors = model.prototype_layer.prototype_vectors
         feature_vectors_z = model.enc.forward(imgs)
         
-        # get prototype with min distance to z
-        min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
-
-
         # draws prototype close to training example
         r1_loss = torch.mean(torch.min(list_of_distances(prototype_vectors, feature_vectors_z.view(-1, model.input_dim_prototype)), dim=1)[0])
         # draws encoding close to prototype
         r2_loss = torch.mean(torch.min(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype ), prototype_vectors), dim=1)[0])
         
-        # draws encoding before the prototype layer close to encoding after the prototype layer
-        # r3_loss = torch.mean(torch.min(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype), pred.view(-1, model.input_dim_prototype)), dim=1)[0])
-        # draws encoding after the prototype layer close to encoding before the prototype layer
-        # r4_loss = torch.mean(torch.min(list_of_distances(pred.view(-1, model.input_dim_prototype), feature_vectors_z.view(-1, model.input_dim_prototype )), dim=1)[0])
-        r3_loss = torch.zeros((1,)).to(config['device'])
+        # experimental
+        r3_loss = torch.mean(torch.topk(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype ), prototype_vectors), k=2, dim=1, largest=False)[0])
         r4_loss = torch.zeros((1,)).to(config['device'])
 
-        # draw prototypes away from each other
-        # get absolute values of lower triangle without diagonal (distances between prototype_vectors)
-        # diagonal would be distance to itself, distance matrix is symmetric
-        # r5_loss = -torch.mean(torch.tril(list_of_distances(prototype_vectors, prototype_vectors), diagonal=1))
-        # r5_loss = -torch.mean(list_of_distances(prototype_vectors, prototype_vectors))
-        
         # diversity regularization
         # draw prototypes away from each other
         # Source: Interpretable and Steerable Sequence Learning via Prototypes
-        d_min = 2 # 1 or 2 according to paper
         relu = torch.nn.ReLU()
         r5_loss = torch.zeros((1,)).to(config['device'])
-        for i in range(prototype_vectors.shape[0]):
-            for j in range(i+1, prototype_vectors.shape[0]):
-                max_distance = relu(d_min - torch.linalg.norm(prototype_vectors[i] - prototype_vectors[j]))
-                r5_loss += max_distance**2
+        # only compute if needed, cause time you know...
+        if config['lambda_r5'] != 0:
+            for i in range(prototype_vectors.shape[0]):
+                for j in range(i+1, prototype_vectors.shape[0]):
+                    # torch.linalg.norm for torch 1.7.0
+                    max_distance = relu(config['diversity_threshold'] - torch.norm(prototype_vectors[i] - prototype_vectors[j]))
+                    r5_loss += max_distance**2
 
-        # r5_tmp = d_min - torch.tril(list_of_distances(prototype_vectors.view(-1,1), prototype_vectors.view(-1,1)), diagonal=1)
-        # r5_tmp = torch.sum(relu(r5_tmp)**2)
-        # print(r5_loss, r5_tmp)
+        softmin_proto_recon_loss = torch.zeros((1,)).to(config['device'])
+        if config['lambda_softmin_proto'] != 0:
+            softmin = torch.nn.Softmin(dim=1)
+            # prototype_vectors_noise = prototype_vectors + torch.normal(torch.zeros_like(prototype_vectors), prototype_vectors.max())
+            p_z = list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype), prototype_vectors, norm='l2')
 
-        rec = model.forward_dec(feature_vectors_z)
-        ae_loss = torch.mean(list_of_norms(rec-imgs))
+            std = (config['training_epochs'] - e) / config['training_epochs']
+            p_z += torch.normal(torch.zeros_like(p_z), std)
 
-        rec_proto = model.forward_dec(min_prototype_vector.reshape(feature_vectors_z.shape))
-        min_proto_loss = torch.mean(list_of_norms(rec-imgs))
+            # experimental cosine similarity
+            # ultra slow
+            # p_z = torch.zeros((feature_vectors_z.shape[0], prototype_vectors.shape[0])).to(config['device'])
+            # for i in range(feature_vectors_z.shape[0]):
+            #     for j in range(prototype_vectors.shape[0]):
+            #         # print(type(feature_vectors_z[i]), type(prototype_vectors[j]))
+            #         cosine = torch.nn.CosineSimilarity()
+            #         p_z[i][j] = cosine(feature_vectors_z[i].reshape(1,-1), prototype_vectors[j].unsqueeze(0))
 
-        loss = config['lambda_min_proto'] * min_proto_loss +\
+            s = softmin(p_z)
+            feature_vectors_softmin = s@prototype_vectors
+            # rec_proto = torch.einsum('bi, ij -> bij', s, prototype_vectors)
+            rec_proto = model.forward_dec(feature_vectors_softmin.reshape(feature_vectors_z.shape))
+            mse = torch.nn.MSELoss()
+            if config['mse']:
+                softmin_proto_recon_loss = mse(rec_proto, imgs)
+            else:
+                softmin_proto_recon_loss = torch.mean(list_of_norms(rec_proto-imgs))
+
+        z_recon_loss = torch.zeros((1,)).to(config['device'])
+        if config['lambda_z'] != 0:
+            rec = model.forward_dec(feature_vectors_z)
+            mse = torch.nn.MSELoss()
+            if config['mse']:
+                z_recon_loss = mse(rec, imgs)
+            else:
+                z_recon_loss = torch.mean(list_of_norms(rec-imgs))
+                
+        # get prototype with min distance to z
+        std = (config['training_epochs'] - e) / config['training_epochs']
+        pred += torch.normal(torch.zeros_like(pred), std)
+        min_prototype_vector = prototype_vectors[torch.argmin(pred, 1)]
+        min_proto_recon_loss = torch.zeros((1,)).to(config['device'])
+        if config['lambda_min_proto'] != 0:
+            rec_proto = model.forward_dec(min_prototype_vector.reshape(feature_vectors_z.shape))
+            mse = torch.nn.MSELoss()
+            if config['mse']:
+                min_proto_recon_loss = mse(rec_proto, imgs)
+            else:
+                min_proto_recon_loss = torch.mean(list_of_norms(rec_proto-imgs))
+
+        loss =  config['lambda_z'] * z_recon_loss +\
+                config['lambda_min_proto'] * min_proto_recon_loss +\
+                config['lambda_softmin_proto'] * softmin_proto_recon_loss +\
                 config['lambda_r1'] * r1_loss +\
                 config['lambda_r2'] * r2_loss +\
                 config['lambda_r3'] * r3_loss +\
                 config['lambda_r4'] * r4_loss +\
-                config['lambda_r5'] * r5_loss +\
-                config['lambda_ae'] * ae_loss
-
+                config['lambda_r5'] * r5_loss
+                
         loss.backward()
         
         optimizer.step()
 
-        loss_dict['min_proto_loss'] += min_proto_loss.item()
+        if config['lr_scheduler']:
+            scheduler.step()
+
+        loss_dict['z_recon_loss'] += z_recon_loss.item()
+        loss_dict['min_proto_recon_loss'] += min_proto_recon_loss.item()
+        loss_dict['softmin_proto_recon_loss'] += softmin_proto_recon_loss.item()
+
         loss_dict['r1_loss'] += r1_loss.item()
         loss_dict['r2_loss'] += r2_loss.item()
         loss_dict['r3_loss'] += r3_loss.item()
         loss_dict['r4_loss'] += r4_loss.item()
         loss_dict['r5_loss'] += r5_loss.item()
-        loss_dict['ae_loss'] += ae_loss.item()
         loss_dict['loss'] += loss.item()
 
     for key in loss_dict.keys():
@@ -207,16 +297,16 @@ for e in range(0, config['training_epochs']):
         torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
         # decode prototype vectors
-        prototype_imgs = model.forward_dec(prototype_vectors.reshape((-1,10,2,2))).detach().cpu()
+        prototype_imgs = model.forward_dec(prototype_vectors.reshape((-1,config['n_z'],2,2))).detach().cpu()
 
         # visualize the prototype images
-        n_cols = 5
+        n_cols = 3
         n_rows = config['n_prototype_vectors'] // n_cols + 1 if config['n_prototype_vectors'] % n_cols != 0 else config['n_prototype_vectors'] // n_cols
         g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))
         for i in range(n_rows):
             for j in range(n_cols):
                 if i*n_cols + j < config['n_prototype_vectors']:
-                    b[i][j].imshow(prototype_imgs[i*n_cols + j].reshape(config['img_shape'][0], config['img_shape'][1]),
+                    b[i][j].imshow(prototype_imgs[i*n_cols + j].reshape(config['img_shape']).permute(1,2,0).squeeze(), # config['img_shape'][1], config['img_shape'][2]
                                     cmap='gray',
                                     interpolation='none')
                     b[i][j].axis('off')
@@ -257,17 +347,17 @@ for e in range(0, config['training_epochs']):
         # compare original images to their reconstructions
         f, a = plt.subplots(3, examples_to_show, figsize=(examples_to_show, 3))
         for i in range(examples_to_show):
-            a[0][i].imshow(imgs[i].reshape(config['img_shape'][0], config['img_shape'][1]),
+            a[0][i].imshow(imgs[i].reshape(config['img_shape']).permute(1,2,0).squeeze(),
                             cmap='gray',
                             interpolation='none')
             a[0][i].axis('off')
 
-            a[1][i].imshow(decoded[i].reshape(config['img_shape'][0], config['img_shape'][1]), 
+            a[1][i].imshow(decoded[i].reshape(config['img_shape']).permute(1,2,0).squeeze(), 
                             cmap='gray',
                             interpolation='none')
             a[1][i].axis('off')
             
-            a[2][i].imshow(decoded_proto[i].reshape(config['img_shape'][0], config['img_shape'][1]), 
+            a[2][i].imshow(decoded_proto[i].reshape(config['img_shape']).permute(1,2,0).squeeze(), 
                             cmap='gray',
                             interpolation='none')
             a[2][i].axis('off')
