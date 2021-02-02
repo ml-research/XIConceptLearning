@@ -83,6 +83,7 @@ class PrototypeLayer(nn.Module):
         super(PrototypeLayer, self).__init__()
 
         self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_vectors, input_dim))
+        nn.init.xavier_uniform_(self.prototype_vectors, gain=1.0)
 
     def forward(self, x):
         return list_of_distances(x, self.prototype_vectors)
