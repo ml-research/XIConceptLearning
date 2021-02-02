@@ -17,7 +17,7 @@ def makedirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def list_of_distances(X, Y):
+def list_of_distances(X, Y, norm='l2'):
     '''
     Given a list of vectors, X = [x_1, ..., x_n], and another list of vectors,
     Y = [y_1, ... , y_m], we return a list of vectors
@@ -31,18 +31,23 @@ def list_of_distances(X, Y):
     # YY = torch.reshape(list_of_norms(Y), shape=(1, -1))
     # output = XX + YY - 2 * torch.matmul(X, torch.transpose(Y))
     # return output
-
-    XX = list_of_norms(X).view(-1, 1)
-    YY = list_of_norms(Y).view(1, -1)
+    
+    XX = list_of_norms(X, norm=norm).view(-1, 1)
+    YY = list_of_norms(Y, norm=norm).view(1, -1)
     return XX + YY - 2 * torch.matmul(X, torch.transpose(Y, 0, 1))
 
-def list_of_norms(X):
+def list_of_norms(X, norm='l2'):
     '''
     X is a list of vectors X = [x_1, ..., x_n], we return
         [d(x_1, x_1), d(x_2, x_2), ... , d(x_n, x_n)], where the distance
     function is the squared euclidean distance.
     '''
-    return torch.sum(torch.pow(X, 2), axis=1)
+    if norm == 'l2':
+        return torch.sum(torch.pow(X, 2), axis=1)
+    elif norm == 'l1':
+        return torch.sum(torch.abs(X), axis=1)
+    
+    return None
 
 def print_and_write(str, file):
     '''
