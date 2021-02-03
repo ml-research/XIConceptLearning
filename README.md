@@ -26,3 +26,13 @@ https://arxiv.org/pdf/2002.01650.pdf
 
 ### Concept Bottleneck:
 https://arxiv.org/pdf/2007.04612.pdf
+
+### Attribute Prototype Network for Zero-Shot Learning
+https://papers.nips.cc/paper/2020/file/fa2431bf9d65058fe34e9713e32d60e6-Paper.pdf
+
+### On Unsupervised Disentanglement
+https://arxiv.org/pdf/1811.12359.pdf
+
+### On Weakly supervised Disentanglement
+https://arxiv.org/pdf/2002.02886.pdf
+https://arxiv.org/pdf/1910.09772.pdf
