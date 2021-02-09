@@ -1,0 +1,67 @@
+This file comprises a list of the different model and loss configurations together with relevant notation conventions.
+
++----------------------------------------------------------------------------------------------------------------------+
+
+
+General notations:
+
+f(.): encoder
+
+g(.): decoder (for z_i and/or z'_i)
+g2(.): only z'_i if z_i is decoded by g(.), separately
+
+h(., .): mixture function that receives two prototypes and combines these to a mixed representation
+
+x_i: ith input sample 
+z_i: encoding of ith sample
+z'_i: latent prototype of sample i, can be computed in different ways (see different models) and represents the mixture 
+      of different group prototypes
+
+K: number of prototype groups
+M: number of prototypes per group (same number per group (so far))
+
+p^1: [p^1_1, p^1_2, ..., p^1_M] (list of m prototypes from group 1)
+p^2: [p^2_1, p^2_2, ..., p^2_M] (list of m prototypes from group 2)
+
+Pr^1: softmin weighted prototype of group 1
+Pr^2: softmin weighted prototype of group 2
+
+AD: Attribute decorrelation loss term of Xu et al. 2020
+Rec: reconstruction loss, e.g. MSE
+
+
+Note: In previous experiments with only a single list of prototypes, p: [p_1, ..., p_n], the loss worked well with:
+z'_i = sum_j^n p_j * sij
+base_model: L = Rec(x_i, g(z'_i)) + R1(z_i, z'_i)
+
++----------------------------------------------------------------------------------------------------------------------+
+
+```Model_V1``` 
+
+z'_i = h(Pr^1, Pr^2)
+
+- using softmin weighted prototype per group as in previous experiments, just per group now
+
+
+model_v1_a: L = Rec(x_i, g(z'_i)) + AD + sum_k^K R1(z_i, Pr^k) 
+
+model_v1_b: L = Rec(x_i, g(z'_i)) + AD + sum_k^K R1(z_i, Pr^k) + MSE(z_i, z'_i)
+
+model_v1_c: L = Rec(x_i, g2(z'_i)) + AD + sum_k^K R1(z_i, Pr^k) + Rec(x_i, g(z_i))
+
++----------------------------------------------------------------------------------------------------------------------+
+
+```Model_V2``` 
+
+z'_i = sum_j^M sum_l^M h(p^1_j, p^2_l) * s_ijl
+
+- where a list over all prototype combinations is created and s_ijl represents the softmin weight for sample i for the 
+  "global" prototype combined out of the jth prototype form group 1 and the lth prototype of group 2
+
+GPr_jl: h(p^1_j, p^2_l), "global" prototype combine from two attribute prototypes, one from each group
+
+
+model_v2_a: L = Rec(x_i, g(z'_i)) + AD + R1(z_i, z'_i)
+
+model_v2_b: L = Rec(x_i, g(z_i)) + Rec(x_i, g2(z'_i)) + AD + R1(z_i, z'_i) + R2(z_i, z'_i)
+	
