@@ -5,11 +5,13 @@ import autoencoder_helpers as ae_helpers
 
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28, 28),
-                 n_prototype_groups=2, n_prototype_vectors_per_group=5):
+                 n_prototype_groups=2, n_prototype_vectors_per_group=5,
+                 device="cpu"):
         super(RAE, self).__init__()
 
         self.n_prototype_groups = n_prototype_groups
         self.n_prototype_vectors_per_group = n_prototype_vectors_per_group
+        self.device = device
 
         # encoder
         self.enc = Encoder()
@@ -30,7 +32,8 @@ class RAE(nn.Module):
         self.prototype_layer = PrototypeLayer(mixture_fn=self.prototype_mixture_func,
                                               input_dim=self.input_dim_prototype,
                                               n_prototype_groups=n_prototype_groups,
-                                              n_prototype_vectors_per_group=n_prototype_vectors_per_group
+                                              n_prototype_vectors_per_group=n_prototype_vectors_per_group,
+                                              device=self.device
                                               )
 
         # decoder
@@ -122,32 +125,40 @@ class Decoder(nn.Module):
 
 # TODO: make distance computing between attribute prototype and img encoding more complex, e.g. via attention?
 class PrototypeLayer(nn.Module):
-    def __init__(self, mixture_fn, input_dim=10, n_prototype_groups=2, n_prototype_vectors_per_group=5):
+    def __init__(self, mixture_fn, input_dim=10, n_prototype_groups=2, n_prototype_vectors_per_group=5, device="cpu"):
         super(PrototypeLayer, self).__init__()
 
         self.mixture_fn = mixture_fn
         self.input_dim = input_dim
         self.n_prototype_groups = n_prototype_groups
         self.n_prototype_vectors_per_group = n_prototype_vectors_per_group
+        self.device = device
+        self.mixture_fn.to(self.device)
 
         self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_groups, n_prototype_vectors_per_group,
-                                                               input_dim))
+                                                               input_dim, device=self.device),
+                                                    requires_grad=True)
         nn.init.xavier_uniform_(self.prototype_vectors, gain=1.0)
 
         self.mixed_prototype_vectors = torch.empty((self.n_prototype_vectors_per_group ** self.n_prototype_groups,
-                                                self.input_dim))
+                                                self.input_dim), device=self.device, requires_grad=True)
         self.update_mixed_prototypes() # initialize global prototypes
 
     def update_mixed_prototypes(self):
         """
         self.n_prototype_vectors_per_group gets updated with each backpropagation pass, therefore we must update the
-        mixed prototype vectors, i.e. the mixed prototypes. I.e. recompute the mixtures.
+        mixed prototype vectors, i.e. recompute the mixtures.
         :return:
         """
+        mixed_prototype_vectors = torch.empty((self.n_prototype_vectors_per_group ** self.n_prototype_groups,
+                                               self.input_dim),
+                                              device=self.device,
+                                              requires_grad=False)
         for j in range(self.n_prototype_vectors_per_group):
             for l in range(self.n_prototype_vectors_per_group):
-                self.mixed_prototype_vectors[j*self.n_prototype_vectors_per_group + l, :] = \
-                    self.mixture_fn(torch.hstack((self.prototype_vectors[0, j], self.prototype_vectors[1, l])))
+                mixed_prototype_vectors[j*self.n_prototype_vectors_per_group + l, :] = \
+                    self.mixture_fn(torch.stack((self.prototype_vectors[0, j], self.prototype_vectors[1, l])).view(-1))
+        return mixed_prototype_vectors
 
     def forward(self, x):
         """
@@ -156,7 +167,7 @@ class PrototypeLayer(nn.Module):
         :param x:
         :return:
         """
-        self.update_mixed_prototypes()
+        self.mixed_prototype_vectors = self.update_mixed_prototypes()
         return ae_helpers.list_of_distances(x, self.mixed_prototype_vectors)
 
 

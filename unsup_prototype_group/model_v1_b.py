@@ -5,11 +5,13 @@ import autoencoder_helpers as ae_helpers
 
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28, 28),
-                 n_prototype_groups=2, n_prototype_vectors_per_group=5):
+                 n_prototype_groups=2, n_prototype_vectors_per_group=5,
+                 device="cpu"):
         super(RAE, self).__init__()
 
         self.n_prototype_groups = n_prototype_groups
         self.n_prototype_vectors_per_group = n_prototype_vectors_per_group
+        self.device = device
 
         # encoder
         self.enc = Encoder()
@@ -20,7 +22,8 @@ class RAE(nn.Module):
         self.input_dim_prototype = self.enc_out.view(-1, 1).shape[0]
         self.prototype_layer = PrototypeLayer(input_dim=self.input_dim_prototype,
                                               n_prototype_groups=n_prototype_groups,
-                                              n_prototype_vectors_per_group=n_prototype_vectors_per_group
+                                              n_prototype_vectors_per_group=n_prototype_vectors_per_group,
+                                              device=self.device
                                               )
 
         # decoder
@@ -129,12 +132,14 @@ class Decoder(nn.Module):
 
 # TODO: make distance computing between attribute prototype and img encoding more complex, e.g. via attention?
 class PrototypeLayer(nn.Module):
-    def __init__(self, input_dim=10, n_prototype_groups=2, n_prototype_vectors_per_group=5):
+    def __init__(self, input_dim=10, n_prototype_groups=2, n_prototype_vectors_per_group=5, device="cpu"):
         super(PrototypeLayer, self).__init__()
 
         self.n_prototype_groups = n_prototype_groups
+        self.device = device
         self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_groups, n_prototype_vectors_per_group,
-                                                               input_dim))
+                                                               input_dim, device=self.device),
+                                                    requires_grad=True)
         nn.init.xavier_uniform_(self.prototype_vectors, gain=1.0)
 
     def forward(self, x):

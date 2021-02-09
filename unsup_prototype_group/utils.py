@@ -4,7 +4,17 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import random
 from torchvision import transforms
+
+
+def set_seed(seed=42):
+	random.seed(seed)
+	os.environ['PYTHONHASHSEED'] = str(seed)
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+	torch.backends.cudnn.deterministic = True
+	torch.backends.cudnn.benchmark = False
 
 
 def save_args(args, writer):
@@ -29,7 +39,7 @@ def write_imgs(writer, epoch, imgs, tag):
 	:param tag:
 	:return:
 	"""
-	for j in [0, 2, 8, 10]:
+	for j in range(10):
 
 		fig = plt.figure()
 		ax = plt.axes()
@@ -52,7 +62,7 @@ def write_switch_prototypes(writer, epoch, imgs, recon_protos, recon_imgs, switc
 	:return:
 	"""
 
-	for j in [0, 2, 8, 10]:
+	for j in range(10):
 		fig = plt.figure()
 		ax = plt.axes()
 		img = imgs[j].squeeze().detach().cpu()

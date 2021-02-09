@@ -1,6 +1,3 @@
-# Ignore uploading MNIST_data
-MNIST_data/
-
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
@@ -111,3 +108,5 @@ ENV/
 # dataset
 /dataset
 /data/
+
+/runs/

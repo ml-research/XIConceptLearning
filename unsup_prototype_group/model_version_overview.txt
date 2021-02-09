@@ -49,6 +49,8 @@ model_v1_b: L = Rec(x_i, g(z'_i)) + AD + sum_k^K R1(z_i, Pr^k) + MSE(z_i, z'_i)
 
 model_v1_c: L = Rec(x_i, g2(z'_i)) + AD + sum_k^K R1(z_i, Pr^k) + Rec(x_i, g(z_i))
 
+model_v1_d: L = as model_v1_a but with z'_i = h(m^1(Pr^1), m^2(Pr^2)), with m^k a refinement module, e.g. Linear or Attention, in order to refinery extract the relevant information from the prototype before passing it to the mixture function.
+
 +----------------------------------------------------------------------------------------------------------------------+
 
 ```Model_V2``` 

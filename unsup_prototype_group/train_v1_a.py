@@ -18,7 +18,10 @@ import model_v1_a as model
 import utils as utils
 import autoencoder_helpers as ae_helpers
 
-torch.set_num_threads(30)
+os.environ["MKL_NUM_THREADS"] = "6"
+os.environ["NUMEXPR_NUM_THREADS"] = "6"
+os.environ["OMP_NUM_THREADS"] = "6"
+torch.set_num_threads(6)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -96,12 +99,25 @@ def get_args():
         help="Number of prototypes per group (constant over all)"
     )
 
+    parser.add_argument(
+        "--seed", type=int, default=3,
+        help="Random number seed"
+    )
+
     args = parser.parse_args()
 
     args.img_shape = np.array([int(dim) for dim in args.img_shape[0].split(',')])
 
     if args.device_list_parallel is not None:
         args.device_list_parallel = [int(elem) for elem in args.device_list_parallel[0].split(',')]
+
+    # set all seeds for reproducibility
+    utils.set_seed(args.seed)
+
+    if not args.no_cuda:
+        args.device = "cuda:0"
+    else:
+        args.device = "cpu"
 
     return args
 
@@ -120,24 +136,26 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
 
     for i, sample in tqdm(enumerate(loader, start=epoch * iters_per_epoch)):
         if not args.no_cuda:
-            imgs, labels = map(lambda x: x.to("cuda:0"), sample)
+            imgs, labels = map(lambda x: x.to(args.device), sample)
         else:
             imgs, labels = sample
 
         std = (args.epochs*iters_per_epoch - i) / args.epochs*iters_per_epoch
         recon_imgs, recon_protos, protos_latent, imgs_latent, per_group_prototype = net.forward(imgs, noise_std=std)
 
+        # TODO: something fishy here with backward
         # R1 Loss: draws prototype close to training example
-        loss_r1 = torch.ones(net.n_prototype_groups, requires_grad=True)
+        tmp = torch.ones(net.n_prototype_groups, requires_grad=False, device=args.device)
         for k in range(net.n_prototype_groups):
-            loss_r1[k] = torch.mean(
+            tmp[k] = torch.mean(
                 torch.min(ae_helpers.list_of_distances(per_group_prototype[:, k, :].view(-1, net.input_dim_prototype),
                                                        imgs_latent.view(-1, net.input_dim_prototype)), dim=1)[0]
                                     )
-        loss_r1 = torch.sum(loss_r1)
+        loss_r1 = torch.sum(tmp)
 
         # add attribute decorrelation loss from Xu et al. 2020 (equation 5)
         loss_ad = torch.sum(torch.sqrt(torch.sum(protos_latent.T**2, dim=1)), dim=0)
+        # loss_ad = torch.tensor(0., requires_grad=True)
 
         # compute reconstruction loss between reconstructed prototypes and images
         loss_softmin_proto_recon = criterion(recon_protos, imgs)
@@ -148,6 +166,7 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         loss = args.lambda_recon_protos * loss_softmin_proto_recon + \
                args.lambda_r1 * loss_r1 + \
                args.lambda_ad * loss_ad
+        # loss = loss_ad
 
         if train:
 
@@ -227,7 +246,8 @@ def train(args):
 
     net = model.RAE(input_dim=(1, args.img_shape[0], args.img_shape[1], args.img_shape[2]),
                     n_prototype_groups=args.n_prototype_groups,
-                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group)
+                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group,
+                    device=args.device)
 
     start_epoch = 0
     if args.resume:
@@ -237,8 +257,7 @@ def train(args):
         net.load_state_dict(weights, strict=True)
         start_epoch = log["args"]["epochs"]
 
-    if not args.no_cuda:
-        net = net.to("cuda:0")
+    net = net.to(args.device)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     criterion = torch.nn.MSELoss()
@@ -246,7 +265,7 @@ def train(args):
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=0.00005)
 
     # Create RTPT object
-    rtpt = RTPT(name_initials='WS', experiment_name=f"ToyData AE",
+    rtpt = RTPT(name_initials='WS', experiment_name=f"ToyData Group Prototypes V1A",
                 max_iterations=args.epochs)
 
     # store args as txt file

@@ -18,7 +18,10 @@ import model_v1_b as model
 import utils as utils
 import autoencoder_helpers as ae_helpers
 
-torch.set_num_threads(30)
+os.environ["MKL_NUM_THREADS"] = "6"
+os.environ["NUMEXPR_NUM_THREADS"] = "6"
+os.environ["OMP_NUM_THREADS"] = "6"
+torch.set_num_threads(6)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -99,12 +102,25 @@ def get_args():
         help="Number of prototypes per group (constant over all)"
     )
 
+    parser.add_argument(
+        "--seed", type=int, default=3,
+        help="Random number seed"
+    )
+
     args = parser.parse_args()
 
     args.img_shape = np.array([int(dim) for dim in args.img_shape[0].split(',')])
 
     if args.device_list_parallel is not None:
         args.device_list_parallel = [int(elem) for elem in args.device_list_parallel[0].split(',')]
+
+    # set all seeds for reproducibility
+    utils.set_seed(args.seed)
+
+    if not args.no_cuda:
+        args.device = "cuda:0"
+    else:
+        args.device = "cpu"
 
     return args
 
@@ -122,10 +138,7 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
     iters_per_epoch = len(loader)
 
     for i, sample in tqdm(enumerate(loader, start=epoch * iters_per_epoch)):
-        if not args.no_cuda:
-            imgs, labels = map(lambda x: x.to("cuda:0"), sample)
-        else:
-            imgs, labels = sample
+        imgs, labels = map(lambda x: x.to(args.device), sample)
 
         std = (args.epochs*iters_per_epoch - i) / args.epochs*iters_per_epoch
         recon_imgs, recon_protos, protos_latent, imgs_latent, per_group_prototype = net.forward(imgs, noise_std=std)
@@ -236,7 +249,8 @@ def train(args):
 
     net = model.RAE(input_dim=(1, args.img_shape[0], args.img_shape[1], args.img_shape[2]),
                     n_prototype_groups=args.n_prototype_groups,
-                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group)
+                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group,
+                    device=args.device)
 
     start_epoch = 0
     if args.resume:
@@ -246,8 +260,7 @@ def train(args):
         net.load_state_dict(weights, strict=True)
         start_epoch = log["args"]["epochs"]
 
-    if not args.no_cuda:
-        net = net.to("cuda:0")
+    net = net.to(args.device)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     criterion = torch.nn.MSELoss()

@@ -18,7 +18,10 @@ import model_v2_a as model
 import utils as utils
 import autoencoder_helpers as ae_helpers
 
-torch.set_num_threads(30)
+os.environ["MKL_NUM_THREADS"] = "6"
+os.environ["NUMEXPR_NUM_THREADS"] = "6"
+os.environ["OMP_NUM_THREADS"] = "6"
+torch.set_num_threads(6)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -96,12 +99,25 @@ def get_args():
         help="Number of prototypes per group (constant over all)"
     )
 
+    parser.add_argument(
+        "--seed", type=int, default=3,
+        help="Random number seed"
+    )
+
     args = parser.parse_args()
 
     args.img_shape = np.array([int(dim) for dim in args.img_shape[0].split(',')])
 
     if args.device_list_parallel is not None:
         args.device_list_parallel = [int(elem) for elem in args.device_list_parallel[0].split(',')]
+
+    # set all seeds for reproducibility
+    utils.set_seed(args.seed)
+
+    if not args.no_cuda:
+        args.device = "cuda:0"
+    else:
+        args.device = "cpu"
 
     return args
 
@@ -124,7 +140,7 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         else:
             imgs, labels = sample
 
-        recon_imgs, recon_protos, protos_latent, imgs_latent, per_group_prototype = net.forward(imgs)
+        recon_imgs, recon_protos, protos_latent, imgs_latent = net.forward(imgs)
 
         loss_r1 = torch.mean(
             torch.min(ae_helpers.list_of_distances(protos_latent.view(-1, net.input_dim_prototype),
@@ -150,11 +166,15 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         # compute reconstruction loss between reconstructed images and images
         loss_img_recon = criterion(recon_imgs, imgs)
 
-        loss = args.lambda_recon_imgs * loss_img_recon + \
-               args.lambda_recon_protos * loss_softmin_proto_recon + \
-               args.lambda_r1 * loss_r1 + \
-               args.lambda_r2 * loss_r2 + \
-               args.lambda_ad * loss_ad
+        # loss = args.lambda_recon_imgs * loss_img_recon + \
+        #        args.lambda_recon_protos * loss_softmin_proto_recon + \
+        #        args.lambda_r1 * loss_r1 + \
+        #        args.lambda_r2 * loss_r2 + \
+        #        args.lambda_ad * loss_ad
+        # loss = args.lambda_recon_imgs * loss_img_recon + \
+        #        args.lambda_recon_protos * loss_softmin_proto_recon + \
+        loss = args.lambda_recon_protos * loss_softmin_proto_recon
+               # args.lambda_recon_imgs * loss_img_recon
 
         if train:
 
@@ -235,7 +255,8 @@ def train(args):
 
     net = model.RAE(input_dim=(1, args.img_shape[0], args.img_shape[1], args.img_shape[2]),
                     n_prototype_groups=args.n_prototype_groups,
-                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group)
+                    n_prototype_vectors_per_group=args.n_prototype_vectors_per_group,
+                    device=args.device)
 
     start_epoch = 0
     if args.resume:
@@ -245,8 +266,7 @@ def train(args):
         net.load_state_dict(weights, strict=True)
         start_epoch = log["args"]["epochs"]
 
-    if not args.no_cuda:
-        net = net.to("cuda:0")
+    net = net.to(args.device)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     criterion = torch.nn.MSELoss()
@@ -254,7 +274,7 @@ def train(args):
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=0.00005)
 
     # Create RTPT object
-    rtpt = RTPT(name_initials='WS', experiment_name=f"ToyData AE",
+    rtpt = RTPT(name_initials='WS', experiment_name=f"ToyData Group Prototypes V2A",
                 max_iterations=args.epochs)
 
     # store args as txt file
