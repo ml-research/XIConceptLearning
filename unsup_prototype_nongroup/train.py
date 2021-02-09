@@ -45,14 +45,13 @@ config = dict({
     'lambda_z': 0,              # decode z
     'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
     'lambda_r1': 1e-2,          # draws prototype close to training example
-    'lambda_r2': 0,             # draws encoding close to prototype
+    'lambda_r2': 1e-2,             # draws encoding close to prototype
     'lambda_r3': 0,             # not used
     'lambda_r4': 0,             # not used
     'lambda_r5': 0,             # diversity penalty
     'diversity_threshold': 2,   # 1-2 suggested by paper
 
     'learning_rate': 1e-3,
-    'training_epochs': 500,
     'lr_scheduler': True,
     'batch_size': 1000,
     'n_workers': 2,
@@ -80,6 +79,13 @@ def get_args():
     parser.add_argument(
         "-s", "--seed", type=int, default=0, help="seed"
     )
+    parser.add_argument(
+        "-p", "--n_prototype_vectors", type=int, default=0, help="num of prototypes"
+    )
+    parser.add_argument(
+        "-e", "--epochs", type=int, default=500, help="num of epochs to train"
+    )
+
 
     args = parser.parse_args()
     return args
@@ -163,6 +169,7 @@ def train(model, data_loader, log_samples):
                 #         p_z[i][j] = cosine(feature_vectors_z[i].reshape(1,-1), prototype_vectors[j].unsqueeze(0))
 
                 s = softmin(p_z)
+                prototype_vectors = torch.mul(model.weights_prototypes, prototype_vectors)
                 feature_vectors_softmin = s@prototype_vectors
                 # rec_proto = torch.einsum('bi, ij -> bij', s, prototype_vectors)
                 rec_proto = model.dec.forward(feature_vectors_softmin.reshape(feature_vectors_z.shape))
@@ -238,7 +245,7 @@ def train(model, data_loader, log_samples):
                 loss_summary += f'{key} {loss_dict[key]:2.4f} '
             print(loss_summary)
 
-        if (e+1) % config['save_step'] == 0 or e == config['training_epochs'] - 1:
+        if (e+1) % config['save_step'] == 0 or e == config['training_epochs'] - 1 or e == 0:
 
             state = {
                     'model': model.state_dict(),
@@ -294,6 +301,7 @@ def train(model, data_loader, log_samples):
             # std = (config['training_epochs'] - e) / config['training_epochs']
             # p_z += torch.normal(torch.zeros_like(p_z), std)
             s = softmin(p_z)
+            prototype_vectors = torch.mul(model.weights_prototypes, prototype_vectors)
             softmin_prototype_vector = s@prototype_vectors
 
             decoded_proto_softmin = model.dec.forward(softmin_prototype_vector.reshape(encoded.shape))
@@ -370,7 +378,7 @@ def init_dataset():
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
-        config['n_prototype_vectors'] = train_labels.shape[1]
+        #config['n_prototype_vectors'] = train_labels.shape[1]
         print('Overriding img_shape and n_prototype_vectors')
 
         dataset = torch.utils.data.TensorDataset(train_data, train_labels)
@@ -401,8 +409,13 @@ def init_dataset():
 if __name__ == '__main__':
     _args = get_args()
     config['seed'] = _args.seed
+    config['n_prototype_vectors'] = _args.n_prototype_vectors
+    config['training_epochs'] = _args.epochs
+
     if config['experiment_name'] == '':
-        config['experiment_name'] = 'seed' + str(config['seed']) + '_' + str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').split('.')[0]
+        config['experiment_name'] = 'seed' + str(config['seed']) + '_' \
+                                    + 'protos' + str(config['n_prototype_vectors']) + '_' + \
+                                    str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').split('.')[0]
 
     config['results_dir'] = os.path.join(config['results_dir'], config['experiment_name'])
     config['model_dir'] = os.path.join(config['results_dir'], config['model_dir'])
@@ -431,6 +444,8 @@ if __name__ == '__main__':
 
     # model setup
     _model = RAE(input_dim=(1, config['img_shape'][0], config['img_shape'][1], config['img_shape'][2]),
-                n_z=config['n_z'], filter_dim=config['filter_dim'], n_prototype_vectors=config['n_prototype_vectors'])
+                n_z=config['n_z'], filter_dim=config['filter_dim'],
+                 n_prototype_vectors=config['n_prototype_vectors'],
+                 train_pw=False)
     _model = _model.to(config['device'])
     train(_model, _data_loader, x_set)
