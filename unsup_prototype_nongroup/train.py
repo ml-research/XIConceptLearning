@@ -12,7 +12,6 @@ from data_preprocessing import batch_elastic_transform
 
 import time
 
-import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -30,6 +29,8 @@ from PIL import Image
 import json
 
 from torch.optim import lr_scheduler
+import argparse
+
 
 config = dict({
     'device': 'cuda:0',
@@ -70,12 +71,21 @@ config = dict({
 
     'dataset': 'toycolor',       # 'toycolor' or 'mnist' or 'toycolorshape'
     'init': 'xavier',
-
-    'seed': 42
 })
 
 
-def train(model, data_loader):
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-s", "--seed", type=int, default=0, help="seed"
+    )
+
+    args = parser.parse_args()
+    return args
+
+
+def train(model, data_loader, log_samples):
     # optimizer setup
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
 
@@ -233,7 +243,8 @@ def train(model, data_loader):
             state = {
                     'model': model.state_dict(),
                     'optimizer': optimizer.state_dict(),
-                    'ep': e
+                    'ep': e,
+                    'config': config
                     }
             torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
@@ -264,12 +275,8 @@ def train(model, data_loader):
             writer.add_image(f'train/prototype_result', image, global_step=e)
 
             # apply encoding and decoding over a small subset of the training set
-            imgs = []
-            for batch in data_loader:
-                imgs = batch[0].to(config['device'])
-                break
-
-            examples_to_show = 10
+            imgs = log_samples
+            examples_to_show = len(log_samples)
 
             # decoded image
             encoded = model.enc.forward(imgs[:examples_to_show])
@@ -392,8 +399,10 @@ def init_dataset():
 
 
 if __name__ == '__main__':
+    _args = get_args()
+    config['seed'] = _args.seed
     if config['experiment_name'] == '':
-        config['experiment_name'] = str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').split('.')[0]
+        config['experiment_name'] = 'seed' + str(config['seed']) + '_' + str(datetime.datetime.now()).replace(' ', '_').replace(':', '-').split('.')[0]
 
     config['results_dir'] = os.path.join(config['results_dir'], config['experiment_name'])
     config['model_dir'] = os.path.join(config['results_dir'], config['model_dir'])
@@ -404,7 +413,16 @@ if __name__ == '__main__':
     torch.manual_seed(config['seed'])
 
     _data_loader = init_dataset()
+    x = _data_loader.dataset.tensors[0].detach().numpy().tolist()
+    y = _data_loader.dataset.tensors[1].detach().numpy().tolist()
+    y_set = np.unique(y,axis=0).tolist()
 
+    x_dict = dict()
+    x_set = []
+    for u in y_set:
+        x_set.append(x[y.index(u)])
+    x_set = torch.Tensor(x_set)
+    x_set = x_set.to(config['device'])
     writer = SummaryWriter(log_dir=config['results_dir'])
 
     # store config
@@ -415,4 +433,4 @@ if __name__ == '__main__':
     _model = RAE(input_dim=(1, config['img_shape'][0], config['img_shape'][1], config['img_shape'][2]),
                 n_z=config['n_z'], filter_dim=config['filter_dim'], n_prototype_vectors=config['n_prototype_vectors'])
     _model = _model.to(config['device'])
-    train(_model, _data_loader)
+    train(_model, _data_loader, x_set)
