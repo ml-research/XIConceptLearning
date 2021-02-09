@@ -30,7 +30,7 @@ def save_args(args, writer):
 			f.write(f"\n{arg}: {getattr(args, arg)}")
 
 
-def write_imgs(writer, epoch, imgs, tag):
+def write_imgs(writer, epoch, imgs, tag, num_imgs=10):
 	"""
 	Add the reconstructed and original image to tensorboard writer.
 	:param writer:
@@ -39,15 +39,16 @@ def write_imgs(writer, epoch, imgs, tag):
 	:param tag:
 	:return:
 	"""
-	for j in range(10):
-
-		fig = plt.figure()
-		ax = plt.axes()
+	for j in range(num_imgs):
+		ax = plt.subplot(1,num_imgs,j+1)
 		img = imgs[j].squeeze().detach().cpu()
-		ax.imshow(np.array(transforms.ToPILImage()(img).convert("RGB")))
-		writer.add_figure(f"Val_Sample_{j}/{tag}", fig, epoch, close=True)
+		plt.imshow(np.array(transforms.ToPILImage()(img).convert("RGB")))
+		ax.axis('off')
 
-		plt.close()
+	fig = plt.gcf()
+	writer.add_figure(f"Val_Sample/{tag}", fig, epoch, close=True)
+
+	plt.close()
 
 
 def write_switch_prototypes(writer, epoch, imgs, recon_protos, recon_imgs, switched_rec_proto):

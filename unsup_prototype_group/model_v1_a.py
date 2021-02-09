@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import autoencoder_helpers as ae_helpers
+from unsup_prototype_nongroup.network import Encoder, Decoder, ConvLayer
 
 
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28, 28),
-                 n_prototype_groups=2, n_prototype_vectors_per_group=5,
+                 n_prototype_groups=2, n_prototype_vectors_per_group=5, n_z=10, filter_dim=32,
                  device="cpu"):
         super(RAE, self).__init__()
 
@@ -14,7 +15,7 @@ class RAE(nn.Module):
         self.device = device
 
         # encoder
-        self.enc = Encoder()
+        self.enc = Encoder(input_dim=input_dim[1], filter_dim=filter_dim, output_dim=n_z)
 
         # prototype layer
         # forward encoder to determine input dim for prototype layer
@@ -26,14 +27,18 @@ class RAE(nn.Module):
                                               device=self.device)
 
         # decoder
-        self.dec = Decoder()
+        dec_out_shapes = []
+        for module in self.enc.modules():
+            if isinstance(module, ConvLayer):
+                dec_out_shapes += [list(module.in_shape)]
+        self.dec = Decoder(input_dim=n_z, filter_dim=filter_dim, output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
         # TODO: the learnable mixture function, ie. learns the combination of different attribute prototypes
         #  -> make this more complex, e.g. some form of attention?
         # first naive approach: stack the prototypes from each group and apply a nonlinear mapping to the encoding space
         self.prototype_mixture_func = nn.Sequential(
             nn.Linear(self.input_dim_prototype * self.n_prototype_groups, self.input_dim_prototype),
-            nn.ReLU()
+            #nn.ReLU()
         )
 
         self.softmin = nn.Softmin(dim=1)
@@ -91,42 +96,6 @@ class RAE(nn.Module):
         rec_img = self.dec(img_latent)
 
         return rec_img, rec_proto, proto_latent, img_latent, per_group_prototype
-
-
-class Encoder(nn.Module):
-    def __init__(self):
-        super(Encoder, self).__init__()
-
-        self.model = nn.Sequential(
-            nn.Conv2d(3, 16, 3, stride=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(16, 8, 3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=1),
-        )
-
-    def forward(self, x):
-        out = self.model(x)
-        return out
-
-
-class Decoder(nn.Module):
-    def __init__(self):
-        super(Decoder, self).__init__()
-
-        self.model = nn.Sequential(
-            nn.ConvTranspose2d(8, 16, 3, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(8, 3, 2, stride=2, padding=1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):
-        out = self.model(x)
-        return out
 
 
 # TODO: make distance computing between attribute prototype and img encoding more complex, e.g. via attention?

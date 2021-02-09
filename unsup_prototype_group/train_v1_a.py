@@ -35,7 +35,7 @@ def get_args():
         "--resume", help="Path to log file to resume from"
     )
     parser.add_argument(
-        "--epochs", type=int, default=10, help="Number of epochs to train with"
+        "-e", "--epochs", type=int, default=10, help="Number of epochs to train with"
     )
     parser.add_argument(
         "--warm-up-steps", type=int, default=10, help="Number of steps fpr learning rate scheduler"
@@ -47,7 +47,7 @@ def get_args():
         "--lr", type=float, default=1e-2, help="Outer learning rate of model"
     )
     parser.add_argument(
-        "--batch-size", type=int, default=32, help="Batch size to train with"
+        "-bs", "--batch-size", type=int, default=32, help="Batch size to train with"
     )
     parser.add_argument(
         "--num-workers", type=int, default=4, help="Number of threads for data loader"
@@ -68,28 +68,28 @@ def get_args():
         "--eval-only", action="store_true", help="Only run evaluation, no training"
     )
     parser.add_argument(
-        "--data-dir", type=str, help="Directory to data"
+        "-d", "--data-dir", type=str, help="Directory to data"
     )
 
     parser.add_argument(
-        "--lambda-recon-imgs", type=float, default=1., help="lambda for image reconstruction loss term"
+        "-recx", "--lambda-recon-imgs", type=float, default=1., help="lambda for image reconstruction loss term"
     )
     parser.add_argument(
-        "--lambda-recon-protos", type=float, default=1., help="lambda for prototype reconstruction loss term"
+        "-recp", "--lambda-recon-protos", type=float, default=1., help="lambda for prototype reconstruction loss term"
     )
     parser.add_argument(
-        "--lambda-r1", type=float, default=1., help="lambda for r1 loss term"
+        "-r1", "--lambda-r1", type=float, default=1., help="lambda for r1 loss term"
     )
     parser.add_argument(
-        "--lambda-r2", type=float, default=1., help="lambda for r1 loss term"
+        "-r2", "--lambda-r2", type=float, default=1., help="lambda for r1 loss term"
     )
     parser.add_argument(
-        "--lambda-ad", type=float, default=1., help="lambda for attribute decorrelation loss term (from Xu et al. 2020)"
+        "-ad", "--lambda-ad", type=float, default=1., help="lambda for attribute decorrelation loss term (from Xu et al. 2020)"
     )
 
     parser.add_argument(
         "--img-shape", nargs="+", default=None,
-        help="List of img shape dims [batch, width, height]"
+        help="List of img shape dims [channel, width, height]"
     )
     parser.add_argument(
         "--n-prototype-groups", type=int, default=2, help="Number of different prototype groups"
@@ -133,12 +133,12 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         torch.set_grad_enabled(False)
 
     iters_per_epoch = len(loader)
-
-    for i, sample in tqdm(enumerate(loader, start=epoch * iters_per_epoch)):
+    cnt = 0
+    for i, sample in enumerate(loader, start=epoch * iters_per_epoch):
         if not args.no_cuda:
-            imgs, labels = map(lambda x: x.to(args.device), sample)
+            imgs, _ = map(lambda x: x.to(args.device), sample)
         else:
-            imgs, labels = sample
+            imgs, _ = sample
 
         std = (args.epochs*iters_per_epoch - i) / args.epochs*iters_per_epoch
         recon_imgs, recon_protos, protos_latent, imgs_latent, per_group_prototype = net.forward(imgs, noise_std=std)
@@ -169,7 +169,6 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         # loss = loss_ad
 
         if train:
-
             if args.resume is None:
                 # manual lr warmup
                 if i < args.warm_up_steps:
@@ -199,11 +198,10 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
                 if i >= args.warm_up_steps:
                     scheduler.step()
         else:
-
-            if i % (iters_per_epoch * args.test_log) == 0:
-                utils.write_imgs(writer, i, imgs, 'Img_Orig')
-                utils.write_imgs(writer, i, recon_protos, 'Protos_Recon')
-                utils.write_imgs(writer, i, recon_imgs, 'Imgs_Recon')
+            if i == epoch * iters_per_epoch:
+                utils.write_imgs(writer, i, imgs, 'Img_Orig', num_imgs=len(imgs))
+                utils.write_imgs(writer, i, recon_protos, 'Protos_Recon', num_imgs=len(imgs))
+                utils.write_imgs(writer, i, recon_imgs, 'Imgs_Recon', num_imgs=len(imgs))
 
                 # # plot mixing prototypes
                 # # switch the prototype of one group between two samples
@@ -239,7 +237,7 @@ def train(args):
     if not args.train_only:
         val_loader = data.get_loader(
             dataset_val,
-            batch_size=args.batch_size,
+            batch_size=len(dataset_val),
             num_workers=args.num_workers,
             shuffle=False,
         )
@@ -274,20 +272,23 @@ def train(args):
     # Start the RTPT tracking
     rtpt.start()
 
-    for epoch in np.arange(start_epoch, args.epochs + start_epoch):
+    epoch_range = np.arange(start_epoch, args.epochs + start_epoch)
+    for epoch in tqdm(epoch_range):
         run_single_epoch(net, train_loader, optimizer, criterion, scheduler, writer, args,
             train=True, epoch=epoch)
-        run_single_epoch(net, val_loader, optimizer, criterion, scheduler, writer, args,
-            train=False, epoch=epoch)
+        if (epoch + 1) % args.test_log == 0:
+            run_single_epoch(net, val_loader, optimizer, criterion, scheduler, writer, args,
+                train=False, epoch=epoch)
         rtpt.step()
 
-        results = {
-            "name": args.name,
-            "weights": net.state_dict(),
-            "args": vars(args),
-        }
-        print(os.path.join(writer.log_dir, args.name+'.pth'))
-        torch.save(results, os.path.join(writer.log_dir, args.name))
+        if (epoch + 1) % args.test_log == 0 or epoch == 0 or epoch == len(epoch_range) - 1:
+            results = {
+                "name": args.name,
+                "weights": net.state_dict(),
+                "args": vars(args),
+            }
+            print(os.path.join(writer.log_dir, args.name+'.pth'))
+            torch.save(results, os.path.join(writer.log_dir, args.name))
         if args.eval_only:
             break
 

@@ -33,6 +33,17 @@ class ToyData(Dataset):
         self.data = np.load(self.data_path, allow_pickle=True)
         self.labels = np.load(self.labels_path, allow_pickle=True)
 
+        if mode == 'val':
+            x = self.data
+            y = self.labels.tolist()
+            y_set = np.unique(y, axis=0).tolist()
+
+            x_set = []
+            for u in y_set:
+                x_set.append(x[y.index(u)])
+            self.data = np.array(x_set)
+            self.labels = np.array(y_set)
+
     def __getitem__(self, index):
         img = self.data[index]
         label = self.labels[index]
