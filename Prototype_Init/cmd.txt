@@ -1,0 +1,35 @@
+# tensorboard
+cmd
+ssh -L 16007:127.0.0.1:16007 ml-stud-mmemmel@130.83.70.1
+sh repositories/XIConceptLearning/run
+tensorboard --logdir XIConceptLearning/results/ --host 0.0.0.0 --port 16007
+
+# OR
+# set path forward in VSCode
+# run on remote
+tensorboard --logdir XIConceptLearning/results/ --host 0.0.0.0 --port 16007
+
+# GPU stat
+gpustat -cp
+
+#t_0
+python train_example_xic.py --class-select shape --n-prototype-vectors -1 --device-id 3 --epochs 10000
+
+#t_1
+python train_example_xic.py --class-select material --n-prototype-vectors -1 --device-id 4 --epochs 10000
+
+#t_2
+python train_example_xic.py --class-select color --n-prototype-vectors -1 --device-id 5 --epochs 10000
+
+#t_3
+python train_example_xic.py --class-select coords --n-prototype-vectors -1 --device-id 6 --epochs 10000
+
+#t_4
+python train_example_xic.py --class-select all --n-prototype-vectors -1 --device-id 7 --epochs 10000
+
+'coords': list(range(1,4)),
+'shape': list(range(4,7)),
+'size': list(range(7,9)),
+'material': list(range(9,11)),
+'color': list(range(11,18)),
+'all': list(range(0, 18))

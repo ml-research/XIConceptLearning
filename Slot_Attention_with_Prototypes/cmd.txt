@@ -1,0 +1,35 @@
+# tensorboard
+cmd
+ssh -L 16007:127.0.0.1:16007 ml-stud-mmemmel@130.83.70.1
+sh repositories/XIConceptLearning/run
+tensorboard --logdir XIConceptLearning/results/ --host 0.0.0.0 --port 16007
+
+# OR
+# set path forward in VSCode
+# run on remote
+tensorboard --logdir XIConceptLearning/results/ --host 0.0.0.0 --port 16007
+
+# GPU stat
+gpustat -cp
+
+'coords': list(range(1,4)),
+'shape': list(range(4,7)),
+'size': list(range(7,9)),
+'material': list(range(9,11)),
+'color': list(range(11,18)),
+'all': list(range(0, 18))
+
+#slot test
+#t_0
+python train_example_slot.py --save-step 1000 --n-prototype-vectors -1 --device-id 10 --epochs 10000 --batch-size 250
+
+#t_1
+python train_example_slot.py --class-select 'color' --save-step 50 --n-prototype-vectors -1 --lambda-class 0 --lambda-ae 1 --lambda-r1 0 --lambda-r2 0 --device-id 9 --epochs 10000
+
+#t_2
+python train_example_slot.py --class-select 'shape' --save-step 50 --n-prototype-vectors -1 --lambda-class 10 --lambda-ae 0 --lambda-r1 0 --lambda-r2 0 --device-id 10 --epochs 10000
+
+#t_0
+python train_example_slot.py --device-ids 5 6 --batch-elastic-transform
+#t_1
+python train_example_slot.py --device-ids 7 8

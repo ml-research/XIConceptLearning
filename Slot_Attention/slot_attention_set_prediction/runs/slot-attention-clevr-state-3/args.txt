@@ -1,0 +1,21 @@
+
+name: slot-attention-clevr-state-3
+resume: None
+epochs: 2000
+ap_log: 10
+lr: 0.0004
+batch_size: 512
+num_workers: 4
+dataset: clevr-state
+no_cuda: False
+train_only: False
+eval_only: False
+multi_gpu: False
+export_dir: None
+data_dir: /workspace/datasets/CLEVR_v1/
+export_n: 1000000000
+full_eval: False
+mask_feature: False
+n_slots: 10
+n_iters_slot_att: 3
+n_attr: 19

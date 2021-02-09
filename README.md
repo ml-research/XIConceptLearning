@@ -1,6 +1,14 @@
 # XIConceptLearning
 Explainable Interactive Concept Learning
 
+- Unsup_Prototype_NonGroup contains the existing Marius experiments with a single list of prototypes
+- Unsup_Prototype_Group contains the fresh code fpr testing different ideas for the Group Prototypes
+- Prototype_Init contains the initial ProtoNet model in pytorch
+- Slot_Attention contains the code to the tested slot attention architectures, i.e. object discovery, set prediction 
+and a try at stacked slot attention
+- Slot_Attention_with_Prototypes contains initial test code for combining slot attention with prototypes heads
+- Toy_Data_Gen contains code for generating the toy shape data 
+
 ## Reading List:
 
 ### Prototype (Rudin):

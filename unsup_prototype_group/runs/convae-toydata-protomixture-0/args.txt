@@ -1,0 +1,24 @@
+
+name: convae-toydata-protomixture-0
+resume: None
+epochs: 50
+warm_up_steps: 200
+test_log: 1
+lr: 0.001
+batch_size: 28
+num_workers: 4
+no_cuda: False
+device_list_parallel: None
+train_only: False
+eval_only: False
+data_dir: data
+lambda_recon_imgs: 1.0
+lambda_recon_protos: 1.0
+lambda_r1: 1.0
+lambda_r2: 1.0
+lambda_ad: 0.1
+img_shape: [ 3 28 28]
+n_prototype_groups: 2
+n_prototype_vectors_per_group: 4
+filter_dim: 32
+n_z: 10
