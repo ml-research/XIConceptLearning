@@ -36,7 +36,7 @@ class CAE(nn.Module):
 
 
 class RAE(nn.Module):
-    def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32, n_prototype_vectors=10):
+    def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32, n_prototype_vectors=10, train_pw=False):
         super(RAE, self).__init__()
 
         # encoder
@@ -47,7 +47,8 @@ class RAE(nn.Module):
         self.enc_out = self.enc.forward(torch.randn(input_dim))
         self.input_dim_prototype = self.enc_out.view(-1,1).shape[0]
         self.prototype_layer = PrototypeLayer(input_dim=self.input_dim_prototype, n_prototype_vectors=n_prototype_vectors)
-
+        self.weights_prototypes = torch.nn.Parameter(torch.ones_like(self.prototype_layer.prototype_vectors))
+        self.weights_prototypes.requires_grad = train_pw
         # decoder
         # use forwarded encoder to determine output shapes for decoder
         dec_out_shapes = []
