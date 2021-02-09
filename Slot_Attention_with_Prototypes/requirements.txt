@@ -1,0 +1,10 @@
+pytorch
+h5py
+matplotlib
+tensorboard
+torchsummary
+pycocotools
+scipy
+scikit-learn
+captum
+setproctitle

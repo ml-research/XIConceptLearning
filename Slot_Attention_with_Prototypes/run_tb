@@ -1,0 +1,1 @@
+tensorboard --logdir . --port 16007 --host 0.0.0.0
