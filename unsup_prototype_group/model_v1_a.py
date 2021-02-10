@@ -20,12 +20,15 @@ class RAE(nn.Module):
         # prototype layer
         # forward encoder to determine input dim for prototype layer
         self.enc_out = self.enc.forward(torch.randn(input_dim))
+        self.latent_shape = self.enc_out.shape[1:]
         self.input_dim_prototype = self.enc_out.view(-1, 1).shape[0]
         self.prototype_layer = PrototypeLayer(input_dim=self.input_dim_prototype,
                                               n_prototype_groups=n_prototype_groups,
                                               n_prototype_vectors_per_group=n_prototype_vectors_per_group,
                                               device=self.device)
 
+        self.transform_prototype_layer = PrototypeTransform(proto_dim=self.input_dim_prototype,
+                                                            n_prototype_groups=n_prototype_groups)
         # decoder
         dec_out_shapes = []
         for module in self.enc.modules():
@@ -38,10 +41,13 @@ class RAE(nn.Module):
         # first naive approach: stack the prototypes from each group and apply a nonlinear mapping to the encoding space
         self.prototype_mixture_func = nn.Sequential(
             nn.Linear(self.input_dim_prototype * self.n_prototype_groups, self.input_dim_prototype),
-            #nn.ReLU()
+            # nn.ReLU()
         )
 
         self.softmin = nn.Softmin(dim=1)
+
+    def get_prototypes(self):
+        return self.prototype_layer.prototype_vectors
 
     # compute per group of prototypes which subprototype is nearest to the image encoding
     def prototype_per_group(self, proto_dists, batch_size, noise_std):
@@ -53,13 +59,16 @@ class RAE(nn.Module):
         # similarity to the image encoding
         # s lies in [0, 1]
         s = [self.softmin(proto_dists[i]) for i in range(self.n_prototype_groups)]
+        #print(s[0][0])
+        #print(s[1][0])
+
         # recombine a weighted prototype per group
         per_group_prototype = [s[i] @ self.prototype_layer.prototype_vectors[i, :, :] for i in
                                range(self.n_prototype_groups)]
+
         # stack and reshape the prototypes to get [batch, n_groups, prototype_length]
         per_group_prototype = torch.stack(per_group_prototype).reshape(
             (batch_size, self.n_prototype_groups, self.input_dim_prototype))
-
         return per_group_prototype
 
     def mix_prototype_per_sample(self, per_group_prototype, batch_size):
@@ -74,8 +83,8 @@ class RAE(nn.Module):
 
         return proto_latent
 
-    def dec_prototype(self, proto_latent, latent_shape):
-        return self.dec(proto_latent.reshape(latent_shape))
+    def dec_prototype(self, proto_latent):
+        return self.dec(proto_latent.reshape([proto_latent.shape[0]] + list(self.latent_shape)))
 
     def forward(self, x, noise_std=0.001):
         img_latent = self.enc(x)
@@ -85,17 +94,32 @@ class RAE(nn.Module):
 
         # compute the weighted prototype per group for each sample, based on the distances, proto_dists
         per_group_prototype = self.prototype_per_group(proto_dists, batch_size=x.shape[0], noise_std=noise_std)
-
+        #per_group_prototype = self.transform_prototype_layer(per_group_prototype)
         # mix the prototypes per group to one
-        proto_latent = self.mix_prototype_per_sample(per_group_prototype, batch_size=x.shape[0])
-
+        #proto_latent = self.mix_prototype_per_sample(per_group_prototype, batch_size=x.shape[0])
+        proto_latent = torch.sum(per_group_prototype, dim=1)
         # reshape to original latent shape, decode
-        rec_proto = self.dec_prototype(proto_latent, img_latent.shape)
+        rec_proto = self.dec_prototype(proto_latent)
 
         # reconstruct the image
         rec_img = self.dec(img_latent)
 
         return rec_img, rec_proto, proto_latent, img_latent, per_group_prototype
+
+
+class PrototypeTransform(nn.Module):
+    def __init__(self, proto_dim=10, n_prototype_groups=2, device="cpu"):
+        super(PrototypeTransform, self).__init__()
+
+        self.n_prototype_groups = n_prototype_groups
+        self.device = device
+        self.prototype_vector_transormation = torch.nn.Parameter(torch.ones(n_prototype_groups,
+                                                                            proto_dim,
+                                                                            device=self.device),
+                                                                 requires_grad=True)
+
+    def forward(self, x):
+        return torch.mul(x, self.prototype_vector_transormation)
 
 
 # TODO: make distance computing between attribute prototype and img encoding more complex, e.g. via attention?

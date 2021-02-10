@@ -17,109 +17,13 @@ import data as data
 import model_v1_a as model
 import utils as utils
 import autoencoder_helpers as ae_helpers
-
+from utils import get_args
 os.environ["MKL_NUM_THREADS"] = "6"
 os.environ["NUMEXPR_NUM_THREADS"] = "6"
 os.environ["OMP_NUM_THREADS"] = "6"
 torch.set_num_threads(6)
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    # generic params
-    parser.add_argument(
-        "--name",
-        default=datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-        help="Name to store the log file as",
-    )
-    parser.add_argument(
-        "--resume", help="Path to log file to resume from"
-    )
-    parser.add_argument(
-        "-e", "--epochs", type=int, default=10, help="Number of epochs to train with"
-    )
-    parser.add_argument(
-        "--warm-up-steps", type=int, default=10, help="Number of steps fpr learning rate scheduler"
-    )
-    parser.add_argument(
-        "--test-log", type=int, default=10, help="Number of epochs before logging AP"
-    )
-    parser.add_argument(
-        "--lr", type=float, default=1e-2, help="Outer learning rate of model"
-    )
-    parser.add_argument(
-        "-bs", "--batch-size", type=int, default=32, help="Batch size to train with"
-    )
-    parser.add_argument(
-        "--num-workers", type=int, default=4, help="Number of threads for data loader"
-    )
-    parser.add_argument(
-        "--no-cuda",
-        action="store_true",
-        help="Run on CPU instead of GPU (not recommended)",
-    )
-    parser.add_argument(
-        "--device-list-parallel", nargs="+", default=None,
-        help="List of gpu devices for parallel computing, e.g. None or 1,3"
-    )
-    parser.add_argument(
-        "--train-only", action="store_true", help="Only run training, no evaluation"
-    )
-    parser.add_argument(
-        "--eval-only", action="store_true", help="Only run evaluation, no training"
-    )
-    parser.add_argument(
-        "-d", "--data-dir", type=str, help="Directory to data"
-    )
 
-    parser.add_argument(
-        "-recx", "--lambda-recon-imgs", type=float, default=1., help="lambda for image reconstruction loss term"
-    )
-    parser.add_argument(
-        "-recp", "--lambda-recon-protos", type=float, default=1., help="lambda for prototype reconstruction loss term"
-    )
-    parser.add_argument(
-        "-r1", "--lambda-r1", type=float, default=1., help="lambda for r1 loss term"
-    )
-    parser.add_argument(
-        "-r2", "--lambda-r2", type=float, default=1., help="lambda for r1 loss term"
-    )
-    parser.add_argument(
-        "-ad", "--lambda-ad", type=float, default=1., help="lambda for attribute decorrelation loss term (from Xu et al. 2020)"
-    )
-
-    parser.add_argument(
-        "--img-shape", nargs="+", default=None,
-        help="List of img shape dims [channel, width, height]"
-    )
-    parser.add_argument(
-        "--n-prototype-groups", type=int, default=2, help="Number of different prototype groups"
-    )
-    parser.add_argument(
-        "--n-prototype-vectors-per-group", type=int, default=3,
-        help="Number of prototypes per group (constant over all)"
-    )
-
-    parser.add_argument(
-        "--seed", type=int, default=3,
-        help="Random number seed"
-    )
-
-    args = parser.parse_args()
-
-    args.img_shape = np.array([int(dim) for dim in args.img_shape[0].split(',')])
-
-    if args.device_list_parallel is not None:
-        args.device_list_parallel = [int(elem) for elem in args.device_list_parallel[0].split(',')]
-
-    # set all seeds for reproducibility
-    utils.set_seed(args.seed)
-
-    if not args.no_cuda:
-        args.device = "cuda:0"
-    else:
-        args.device = "cpu"
-
-    return args
 
 
 def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args, train=False, epoch=0):
@@ -151,11 +55,14 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
                 torch.min(ae_helpers.list_of_distances(per_group_prototype[:, k, :].view(-1, net.input_dim_prototype),
                                                        imgs_latent.view(-1, net.input_dim_prototype)), dim=1)[0]
                                     )
-        loss_r1 = torch.sum(tmp)
+        loss_r1 = torch.mean(tmp)
 
         # add attribute decorrelation loss from Xu et al. 2020 (equation 5)
         loss_ad = torch.sum(torch.sqrt(torch.sum(protos_latent.T**2, dim=1)), dim=0)
         # loss_ad = torch.tensor(0., requires_grad=True)
+
+        # additional mse between two encodings, z_i and z'_i
+        loss_enc_mse = criterion(protos_latent, imgs_latent.view(-1, net.input_dim_prototype))
 
         # compute reconstruction loss between reconstructed prototypes and images
         loss_softmin_proto_recon = criterion(recon_protos, imgs)
@@ -163,9 +70,14 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
         # compute reconstruction loss between reconstructed images and images
         loss_img_recon = criterion(recon_imgs, imgs)
 
+        #loss = args.lambda_recon_imgs * loss_img_recon + \
+        #       args.lambda_recon_protos * loss_softmin_proto_recon + \
+        #       args.lambda_r1 * loss_r1 + \
+        #       args.lambda_ad * loss_ad + \
+        #       args.lambda_enc_mse * loss_enc_mse
+
         loss = args.lambda_recon_protos * loss_softmin_proto_recon + \
-               args.lambda_r1 * loss_r1 + \
-               args.lambda_ad * loss_ad
+               args.lambda_r1 * loss_r1
         # loss = loss_ad
 
         if train:
@@ -186,10 +98,14 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
                                   global_step=i)
                 writer.add_scalar("metric/train/loss_r1", loss_r1.item(), global_step=i)
                 writer.add_scalar("metric/train/loss_ad", loss_ad.item(), global_step=i)
+                writer.add_scalar("metric/train/loss_enc_mse", loss_enc_mse.item(), global_step=i)
 
-                print(f"Epoch {epoch} Global Step {i} Train Loss: {loss.item():.6f} "
-                      f"Recon Proto: {loss_softmin_proto_recon.item():.6f} "
-                      f"R1 Loss: {loss_r1.item():.6f} AD Loss: {loss_ad.item():.6f}")
+                print(f"Epoch {epoch} Global Step {i} Train Loss: {loss.item():.6f} |"
+                      f"Recon Imgs: {loss_img_recon.item():.6f} |"
+                      f"Recon Proto: {loss_softmin_proto_recon.item():.6f} |"
+                      f"R1 Loss: {loss_r1.item():.6f} |"
+                      f"AD Loss: {loss_ad.item():.6f} |"
+                      f"MSE zt' Loss: {loss_enc_mse.item():.6f} ")
 
             cur_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("lr", cur_lr, global_step=i)
@@ -199,8 +115,15 @@ def run_single_epoch(net, loader, optimizer, criterion, scheduler, writer, args,
                     scheduler.step()
         else:
             if i == epoch * iters_per_epoch:
+                protos = net.get_prototypes()
+
+                with torch.no_grad():
+                    for g, protos_group in enumerate(protos):
+                        dec_protos = net.dec_prototype(protos_group)
+                        utils.write_imgs(writer, i, dec_protos, f'Prototypes{g}', num_imgs=len(dec_protos))
+
                 utils.write_imgs(writer, i, imgs, 'Img_Orig', num_imgs=len(imgs))
-                utils.write_imgs(writer, i, recon_protos, 'Protos_Recon', num_imgs=len(imgs))
+                utils.write_imgs(writer, i, recon_protos, 'Rec_with_prototypes', num_imgs=len(recon_protos))
                 utils.write_imgs(writer, i, recon_imgs, 'Imgs_Recon', num_imgs=len(imgs))
 
                 # # plot mixing prototypes
@@ -260,7 +183,7 @@ def train(args):
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
     criterion = torch.nn.MSELoss()
     num_steps = len(train_loader) * args.epochs - args.warm_up_steps
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=0.00005)
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
 
     # Create RTPT object
     rtpt = RTPT(name_initials='WS', experiment_name=f"ToyData Group Prototypes V1A",
