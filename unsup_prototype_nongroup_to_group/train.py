@@ -32,10 +32,10 @@ config = dict({
     'lambda_min_proto': 0,  # decode protoype with min distance to z
     'lambda_z': 0,  # decode z
     'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
-    'lambda_r1': 1e-1,  # draws prototype close to training example
+    'lambda_r1': 1e-2,  # draws prototype close to training example
     'lambda_r2': 0, #1e-2,  # draws encoding close to prototype
     'lambda_enc_mse': 0,
-    'lambda_ad': 0,
+    'lambda_ad': 1e-2,
     'diversity_threshold': 2,  # 1-2 suggested by paper
     'train_weighted_protos': False,
 
@@ -170,7 +170,7 @@ def train(model, data_loader, log_samples):
                 # mse = torch.nn.MSELoss()
                 # min_proto_recon_loss = mse(rec_proto, imgs)
 
-            loss_enc_mse = mse(mixed_prototypes, feature_vectors_z)
+            loss_enc_mse = mse(mixed_prototypes, feature_vectors_z.flatten(1,3))
 
             loss = config['lambda_z'] * img_recon_loss + \
                    config['lambda_min_proto'] * min_proto_recon_loss + \
