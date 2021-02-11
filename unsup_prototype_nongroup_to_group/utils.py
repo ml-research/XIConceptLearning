@@ -24,18 +24,17 @@ def plot_prototypes(model, prototype_vectors, writer, e, config):
 
         # visualize the prototype images
         n_cols = 3
-        n_rows = config['n_prototype_vectors'] // n_cols + 1 if config['n_prototype_vectors'] % n_cols != 0 else \
-            config['n_prototype_vectors'] // n_cols
-        g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))
-        for i in range(n_rows):
-            for j in range(n_cols):
-                if i * n_cols + j < config['n_prototype_vectors']:
-                    b[i][j].imshow(
-                        prototype_imgs[i * n_cols + j].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
-                        # config['img_shape'][1], config['img_shape'][2]
-                        cmap='gray',
-                        interpolation='none')
-                    b[i][j].axis('off')
+        n_rows = 2
+        #g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))
+        cnt = 321
+        for p in prototype_imgs:
+            plt.subplot(cnt)
+            plt.imshow(p.reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
+                            # config['img_shape'][1], config['img_shape'][2]
+                            cmap='gray',
+                            interpolation='none')
+            plt.axis('off')
+            cnt += 1
 
         img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + f'_group_{group_id}'+ '_prototype_result' + '.png')
         plt.savefig(img_save_path,

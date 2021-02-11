@@ -83,19 +83,25 @@ class ConvTransLayer(nn.Module):
 
 
 class PrototypeLayer(nn.Module):
-    def __init__(self, input_dim=10, n_prototype_vectors=10, n_prototype_groups=1, device="cpu"):
+    def __init__(self, input_dim=10, n_prototype_vectors=(10,), device="cpu"):
         super(PrototypeLayer, self).__init__()
-        self.n_prototype_groups = n_prototype_groups
         self.n_prototype_vectors = n_prototype_vectors
+        self.n_prototype_groups = len(n_prototype_vectors)
         self.device = device
-        self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_groups, n_prototype_vectors, input_dim,
-                                                               device=self.device))
-        nn.init.xavier_uniform_(self.prototype_vectors, gain=1.0)
+
+        prototype_vector_list = []
+        for num_protos in n_prototype_vectors:
+            p = torch.nn.Parameter(torch.rand(num_protos, input_dim, device=self.device))
+            nn.init.xavier_uniform_(p, gain=1.0)
+            prototype_vector_list.append(p)
+
+        self.prototype_vectors = nn.ParameterList(prototype_vector_list)
 
     def forward(self, x):
-        out = torch.empty(x.shape[0], self.n_prototype_groups, self.n_prototype_vectors, device=self.device)
+        out = dict()
         for k in range(len(self.prototype_vectors)):
-            out[:, k] = list_of_distances(x, self.prototype_vectors[k])
+            #tmp = torch.empty(x.shape[0], len(self.prototype_vectors[k]), device=self.device)
+            out[k] = list_of_distances(x, self.prototype_vectors[k])
         return out
 
 

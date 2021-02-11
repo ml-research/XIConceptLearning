@@ -41,7 +41,7 @@ class CAE(nn.Module):
 
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32,
-                 n_prototype_vectors=10, n_prototype_groups=1,
+                 n_prototype_vectors=(10,),
                  train_pw=False, device="cpu"):
         super(RAE, self).__init__()
 
@@ -49,7 +49,7 @@ class RAE(nn.Module):
         self.n_z = n_z
         self.filter_dim = filter_dim
         self.n_prototype_vectors = n_prototype_vectors
-        self.n_prototype_groups = n_prototype_groups
+        self.n_prototype_groups = len(n_prototype_vectors)
         self.device = device
 
         # encoder
@@ -62,12 +62,11 @@ class RAE(nn.Module):
 
         # prototype layer
         self.prototype_layer = modules.PrototypeLayer(input_dim=self.dim_prototype,
-                                                      n_prototype_vectors=n_prototype_vectors,
-                                                      n_prototype_groups=n_prototype_groups,
+                                                      n_prototype_vectors=self.n_prototype_vectors,
                                                       device=self.device)
 
-        self.weights_prototypes = torch.nn.Parameter(torch.ones(self.prototype_layer.prototype_vectors.shape[0],
-                                                                self.prototype_layer.prototype_vectors.shape[2]))
+        self.weights_prototypes = torch.nn.Parameter(torch.ones(len(self.prototype_layer.prototype_vectors),
+                                                                self.prototype_layer.prototype_vectors[0].shape[1]))
         self.weights_prototypes.requires_grad = train_pw
 
         # decoder
@@ -88,14 +87,14 @@ class RAE(nn.Module):
         :param prototype_vectors:
         :return:
         """
-        prototype_vectors_softmin = torch.zeros(dists.shape[0], self.n_prototype_groups, self.dim_prototype,
-                                                device=self.device) # [batch, n_groups, dim_protos]
-
         # within every group compute the softmin over the distances and mutmul with the relevant prototype vectors
         # yielding a weighted prototype per group per training sample
+        prototype_vectors_softmin = torch.zeros(len(dists[0]),
+                                                self.n_prototype_groups,
+                                                self.dim_prototype,
+                                                device=self.device)
         for j in range(self.n_prototype_groups):
-            prototype_vectors_softmin[:, j] = self.softmin(dists[:, j]) @ prototype_vectors[j]
-
+            prototype_vectors_softmin[:, j] = self.softmin(dists[j]) @ prototype_vectors[j]
         return prototype_vectors_softmin
 
     def comp_combined_prototype_per_sample(self, prototype_vectors_softmin):
@@ -110,7 +109,6 @@ class RAE(nn.Module):
         prototype_vectors_softmin = torch.mul(self.weights_prototypes, prototype_vectors_softmin) # [batch, n_groups, dim_protos]
         # average over the groups, yielding a combined prototype per sample
         prototype_vectors_softmin = torch.mean(prototype_vectors_softmin, dim=1) # [batch, dim_protos]
-
         return prototype_vectors_softmin
 
     def dec_prototypes(self, prototypes):
@@ -128,7 +126,8 @@ class RAE(nn.Module):
 
         if std:
             # add gaussian noise to prototypes to avoid local optima
-            dists += torch.normal(torch.zeros_like(dists), std) # [batch, n_group, n_proto]
+            for i in range(self.n_prototype_groups):
+                dists[i] += torch.normal(torch.zeros_like(dists[i]), std) # [batch, n_group, n_proto]
 
         # compute the softmin weighted prototype per group
         prototype_vectors_softmin = self.comp_weighted_prototype_per_group(dists,
@@ -142,4 +141,4 @@ class RAE(nn.Module):
 
         recon_img = self.dec(latent_encoding)
 
-        return recon_img, recon_proto, dists, latent_encoding, self.prototype_layer.prototype_vectors
+        return recon_img, recon_proto, dists, latent_encoding, self.prototype_layer.prototype_vectors, mixed_prototypes

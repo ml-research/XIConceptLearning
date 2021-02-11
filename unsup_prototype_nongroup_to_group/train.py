@@ -43,9 +43,7 @@ config = dict({
     'lr_scheduler': True,
     'batch_size': 1000,
     'n_workers': 2,
-
-    'n_prototype_vectors': 4,
-    'n_prototype_groups': 2,
+    'n_prototype_vectors': [4, 2],
     'filter_dim': 32,
     'n_z': 10,
     'batch_elastic_transform': False,
@@ -69,16 +67,16 @@ def get_args():
         "-s", "--seed", type=int, default=0, help="seed"
     )
     parser.add_argument(
-        "-p", "--n_prototype_vectors", type=int, default=4, help="num of prototypes"
-    )
-    parser.add_argument(
         "-e", "--epochs", type=int, default=500, help="num of epochs to train"
     )
+
     parser.add_argument(
-        "-pg", "--prototype-groups", type=int, default=2, help="num prototype groups"
+        "-pv", "--prototype-vectors", nargs="+", default=None,
+        help="List of img shape dims [#p1, #p2, ...]"
     )
 
     args = parser.parse_args()
+    args.prototype_vectors = [int(n) for n in args.prototype_vectors[0].split(',')]
     return args
 
 
@@ -242,7 +240,7 @@ def init_dataset():
                                                      transform=transforms.ToTensor())
 
         config['img_shape'] = (1, 28, 28)
-        config['n_prototype_vectors'] = 10
+        config['n_prototype_vectors'] = [10]
         print('Overriding img_shape and n_prototype_vectors')
 
         dataset = torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
@@ -270,7 +268,6 @@ def init_dataset():
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
-        config['n_prototype_vectors'] = train_labels.shape[1]
         print('Overriding img_shape and n_prototype_vectors')
 
         dataset = torch.utils.data.TensorDataset(train_data, train_labels)
@@ -287,9 +284,9 @@ def init_dataset():
 if __name__ == '__main__':
     _args = get_args()
     config['seed'] = _args.seed
-    config['n_prototype_vectors'] = _args.n_prototype_vectors
+    config['n_prototype_vectors'] = _args.prototype_vectors
     config['training_epochs'] = _args.epochs
-    config['n_prototype_groups'] = _args.prototype_groups
+    config['n_prototype_groups'] = len(_args.prototype_vectors)
     if config['experiment_name'] == '':
         config['experiment_name'] = 'seed' + str(config['seed']) + '_' \
                                     + 'protos' + str(config['n_prototype_vectors']) + '_' + \
@@ -321,6 +318,7 @@ if __name__ == '__main__':
     writer = SummaryWriter(log_dir=config['results_dir'])
 
     # store config
+    print(config['n_prototype_vectors'])
     with open(os.path.join(config['results_dir'], 'args.json'), 'w') as json_file:
         json.dump(config, json_file, indent=2)
 
@@ -328,7 +326,6 @@ if __name__ == '__main__':
     _model = RAE(input_dim=(1, config['img_shape'][0], config['img_shape'][1], config['img_shape'][2]),
                  n_z=config['n_z'], filter_dim=config['filter_dim'],
                  n_prototype_vectors=config['n_prototype_vectors'],
-                 n_prototype_groups=config['n_prototype_groups'],
                  train_pw=config['train_weighted_protos'],
                  device=config['device'])
 
