@@ -5,7 +5,8 @@ import modules as modules
 class RAE(nn.Module):
     def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32,
                  n_prototype_vectors=(10,),
-                 train_pw=False, device="cpu"):
+                 train_pw=False, softmin_temp=1, agg_type='sum',
+                 device="cpu"):
         super(RAE, self).__init__()
 
         self.input_dim = input_dim
@@ -28,9 +29,10 @@ class RAE(nn.Module):
                                                       n_prototype_vectors=self.n_prototype_vectors,
                                                       device=self.device)
 
-        self.weights_prototypes = torch.nn.Parameter(torch.ones(len(self.prototype_layer.prototype_vectors),
-                                                                self.prototype_layer.prototype_vectors[0].shape[1]))
-        self.weights_prototypes.requires_grad = train_pw
+        self.prototype_agg_layer = modules.ProtoAggregateLayer(n_protos=self.n_prototype_groups,
+                                                               dim_protos=self.dim_prototype,
+                                                               train_pw=train_pw,
+                                                               layer_type=agg_type)
 
         # decoder
         # use forwarded encoder to determine output shapes for decoder
@@ -42,6 +44,8 @@ class RAE(nn.Module):
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
         self.softmin = torch.nn.Softmin(dim=1)
+        self.softmin_temp = nn.Parameter(torch.ones(softmin_temp,))
+        self.softmin_temp.requires_grad = False
 
     def comp_weighted_prototype_per_group(self, dists, prototype_vectors):
         """
@@ -57,7 +61,7 @@ class RAE(nn.Module):
                                                 self.dim_prototype,
                                                 device=self.device)
         for j in range(self.n_prototype_groups):
-            prototype_vectors_softmin[:, j] = self.softmin(dists[j]) @ prototype_vectors[j]
+            prototype_vectors_softmin[:, j] = self.softmin(self.softmin_temp*dists[j]) @ prototype_vectors[j]
         return prototype_vectors_softmin
 
     def comp_combined_prototype_per_sample(self, prototype_vectors_softmin):
@@ -67,12 +71,8 @@ class RAE(nn.Module):
         :param prototype_vectors_softmin:
         :return:
         """
-        # TODO: use linear instead? or attention?
-        # multiply each weighted group prototype with the group weights
-        prototype_vectors_softmin = torch.mul(self.weights_prototypes, prototype_vectors_softmin) # [batch, n_groups, dim_protos]
-        # average over the groups, yielding a combined prototype per sample
-        prototype_vectors_softmin = torch.mean(prototype_vectors_softmin, dim=1) # [batch, dim_protos]
-        return prototype_vectors_softmin
+        out = self.prototype_agg_layer(prototype_vectors_softmin)
+        return out
 
     def dec_prototypes(self, prototypes):
         """

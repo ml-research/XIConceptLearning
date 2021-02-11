@@ -136,8 +136,7 @@ def train(model, data_loader, log_samples):
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 
 if __name__ == '__main__':
-   
-   # get config
+    # get config
     config = parse_args_as_dict(sys.argv[1:])
 
     # get data
