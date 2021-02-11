@@ -88,3 +88,10 @@ def plot_examples(log_samples, model, writer, e, config):
     image = Image.open(img_save_path)
     image = TF.to_tensor(image)
     writer.add_image(f'train_rec/decoding_result', image, global_step=e)
+
+def makedirs(path):
+    '''
+    if path does not exist in the file system, create it
+    '''
+    if not os.path.exists(path):
+        os.makedirs(path)

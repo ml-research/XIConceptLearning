@@ -10,13 +10,6 @@ Source: https://github.com/OscarcarLi/PrototypeDL
 import os
 import torch 
 
-def makedirs(path):
-    '''
-    if path does not exist in the file system, create it
-    '''
-    if not os.path.exists(path):
-        os.makedirs(path)
-
 def list_of_distances(X, Y, norm='l2'):
     '''
     Given a list of vectors, X = [x_1, ..., x_n], and another list of vectors,
@@ -48,11 +41,4 @@ def list_of_norms(X, norm='l2'):
         return torch.sum(torch.abs(X), axis=1)
     
     return None
-
-def print_and_write(str, file):
-    '''
-    print str to the console and also write it to file
-    '''
-    print(str)
-    file.write(str + '\n')
 
