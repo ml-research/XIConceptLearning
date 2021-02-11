@@ -29,13 +29,15 @@ def _get_parser():
 
     parser.add_argument('-lr','--learning-rate', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--lr-scheduler', action='store_true', help='use learning rate scheduler')
+    parser.add_argument('--lr-scheduler-warmup-steps', type=int, default=100, help='learning rate scheduler warmup steps')
     parser.add_argument('--batch-size', type=int, default=500, help='batch size')
     parser.add_argument('--epochs', type=int, default=500, help='batch size')
     parser.add_argument('--n-workers', type=float, default=2, help='workers to load data')
     parser.add_argument('-pv', '--prototype-vectors', type=int, nargs='+', default=[], help='List of img shape dims [#p1, #p2, ...]')
     parser.add_argument('--filter-dim', type=int, default=32, help='filter dimensions for encoder')
     parser.add_argument('--n-z', type=int, default=10, help='latent dimensions')
-    
+    parser.add_argument('--agg-type', type=str, default='sum', help='type of prototype aggregation layer')
+
     parser.add_argument('--exp-name', type=str, default='', help='experiment name')
     parser.add_argument('--results-dir', type=str, default='results_group', help='results directory')
     parser.add_argument('--model-dir', type=str, default='states', help='model directory')

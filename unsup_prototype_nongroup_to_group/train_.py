@@ -22,15 +22,13 @@ from data import get_dataloader
 def train(model, data_loader, log_samples):
     # optimizer setup
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
+
     # learning rate scheduler
     if config['lr_scheduler']:
-        # TODO: try LambdaLR
-        num_steps = len(data_loader) * config['training_epochs']
-        num_steps += config['lr_scheduler_warmup_steps']
+        num_steps = len(data_loader) * config['epochs']
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
 
-
-    rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['training_epochs'])
+    rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
     rtpt.start()
 
     mse = torch.nn.MSELoss()
@@ -86,7 +84,7 @@ def train(model, data_loader, log_samples):
             loss.backward()
             optimizer.step()
 
-            if config['lr_scheduler'] and e > config['lr_scheduler_warmup_steps']:
+            if config['lr_scheduler']:
                 scheduler.step()
 
             loss_dict['img_recon_loss'] += img_recon_loss.item()
@@ -104,9 +102,7 @@ def train(model, data_loader, log_samples):
 
         rtpt.step(subtitle=f'loss={loss_dict["loss"]:2.2f}')
 
-        if (e + 1) % config['display_step'] == 0 or e == config['training_epochs'] - 1:
-            cur_lr = optimizer.param_groups[0]["lr"]
-            writer.add_scalar("lr", cur_lr, global_step=e)
+        if (e + 1) % config['display_step'] == 0 or e == config['epochs'] - 1:
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
 
@@ -173,11 +169,9 @@ if __name__ == '__main__':
                  n_z=config['n_z'], filter_dim=config['filter_dim'],
                  n_prototype_vectors=config['prototype_vectors'],
                  train_pw=config['train_weighted_protos'],
-                 device=config['device'],
-                 agg_type=config['agg_type'])
+                 device=config['device'])
 
     _model = _model.to(config['device'])
 
     # start training
     train(_model, _data_loader, x_set)
-
