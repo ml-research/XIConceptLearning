@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from autoencoder_helpers import *
+from autoencoder_helpers import list_of_distances
+
 
 class Encoder(nn.Module):
     def __init__(self, input_dim=1, filter_dim=32, output_dim=10):
@@ -39,6 +40,7 @@ class ConvLayer(nn.Module):
         out = self.activation(out)
         return out 
 
+
 class Decoder(nn.Module):
     def __init__(self, input_dim=10, filter_dim=32, output_dim=1, out_shapes=[]):
         super(Decoder, self).__init__()
@@ -57,6 +59,7 @@ class Decoder(nn.Module):
     def forward(self, x):
         out = self.model(x)
         return out
+
 
 class ConvTransLayer(nn.Module):
     def __init__(self, input_dim, output_dim, output_shape, padding=(0,0,0,0), activation=nn.Sigmoid):
@@ -80,18 +83,19 @@ class ConvTransLayer(nn.Module):
 
 
 class PrototypeLayer(nn.Module):
-    def __init__(self, input_dim=10, n_prototype_vectors=10, n_prototype_groups=1):
+    def __init__(self, input_dim=10, n_prototype_vectors=10, n_prototype_groups=1, device="cpu"):
         super(PrototypeLayer, self).__init__()
         self.n_prototype_groups = n_prototype_groups
         self.n_prototype_vectors = n_prototype_vectors
-        self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_groups, n_prototype_vectors, input_dim))
+        self.device = device
+        self.prototype_vectors = torch.nn.Parameter(torch.rand(n_prototype_groups, n_prototype_vectors, input_dim,
+                                                               device=self.device))
         nn.init.xavier_uniform_(self.prototype_vectors, gain=1.0)
 
     def forward(self, x):
-        out = torch.empty(self.n_prototype_groups, len(x), self.n_prototype_vectors)
-        for i in range(len(self.prototype_vectors)):
-            out[i] = list_of_distances(x, self.prototype_vectors[i])
-        #assert len(out) == 1
+        out = torch.empty(x.shape[0], self.n_prototype_groups, self.n_prototype_vectors, device=self.device)
+        for k in range(len(self.prototype_vectors)):
+            out[:, k] = list_of_distances(x, self.prototype_vectors[k])
         return out
 
 
@@ -104,5 +108,4 @@ class DenseLayerSoftmax(nn.Module):
 
     def forward(self, x):
         out = self.linear(x)
-#         out = self.softmax(out)
         return out
