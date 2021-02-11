@@ -44,12 +44,15 @@ config = dict({
     'lambda_min_proto': 0,  # decode protoype with min distance to z
     'lambda_z': 0,  # decode z
     'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
-    'lambda_r1': 1e-2,  # draws prototype close to training example
-    'lambda_r2': 1e-2,  # draws encoding close to prototype
+    'lambda_r1': 1e-1,  # draws prototype close to training example
+    'lambda_r2': 0, #1e-2,  # draws encoding close to prototype
     'lambda_r3': 0,  # not used
     'lambda_r4': 0,  # not used
     'lambda_r5': 0,  # diversity penalty
+    'lambda_enc_mse': 0,
+    'lambda_ad': 0,
     'diversity_threshold': 2,  # 1-2 suggested by paper
+    'train_weighted_protos': False,
 
     'learning_rate': 1e-3,
     'lr_scheduler': True,
@@ -111,7 +114,7 @@ def train(model, data_loader, log_samples):
         start = time.time()
         loss_dict = dict(
             {'z_recon_loss': 0, 'min_proto_recon_loss': 0, 'softmin_proto_recon_loss': 0, 'r1_loss': 0, 'r2_loss': 0,
-             'r3_loss': 0, 'r4_loss': 0, 'r5_loss': 0, 'loss': 0})
+             'r3_loss': 0, 'r4_loss': 0, 'r5_loss': 0, 'loss': 0, 'enc_mse_loss': 0, 'ad_loss': 0})
 
         for i, batch in enumerate(data_loader):
             imgs = batch[0]
@@ -140,6 +143,20 @@ def train(model, data_loader, log_samples):
                 r1_loss += torch.mean(torch.min(
                     list_of_distances(prototype_vectors[k], feature_vectors_z.view(-1, model.input_dim_prototype)),
                     dim=1)[0])
+            #r1_loss = r1_loss / len(prototype_vectors)
+            # draws encoding close to prototype
+            r2_loss = 0
+            loss_enc_mse = 0
+            for k in range(len(prototype_vectors)):
+                r2_loss += torch.mean(torch.min(
+                    list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype), prototype_vectors[k]),
+                    dim=1)[
+                                          0])
+            loss_ad = torch.zeros((1,)).to(config['device'])
+
+            if config['lambda_ad'] != 0:
+                for k in range(len(prototype_vectors)):
+                    loss_ad += torch.mean(torch.sqrt(torch.sum(prototype_vectors[k].T ** 2, dim=1)), dim=0)
             # draws encoding close to prototype
             # r2_loss = torch.mean(torch.min(list_of_distances(feature_vectors_z.view(-1, model.input_dim_prototype ), prototype_vectors), dim=1)[0])
 
@@ -162,7 +179,7 @@ def train(model, data_loader, log_samples):
                         r5_loss += max_distance ** 2
 
             softmin_proto_recon_loss = torch.zeros((1,)).to(config['device'])
-            if config['lambda_softmin_proto'] != 0:
+            if config['lambda_softmin_proto'] != 0 or config['lambda_softmin_proto'] != 0:
                 softmin = torch.nn.Softmin(dim=1)
                 # prototype_vectors_noise = prototype_vectors + torch.normal(torch.zeros_like(prototype_vectors), prototype_vectors.max())
                 p_z = torch.zeros(len(feature_vectors_z), len(prototype_vectors), prototype_vectors.shape[1],
@@ -191,14 +208,17 @@ def train(model, data_loader, log_samples):
                     feature_vectors_softmin[:, j] = softmin(p_z[:, j]) @ prototype_vectors[j]
                 feature_vectors_softmin = torch.mul(model.weights_prototypes, feature_vectors_softmin)
                 feature_vectors_softmin = torch.mean(feature_vectors_softmin, dim=1)
+                feature_vectors_softmin = feature_vectors_softmin.reshape(feature_vectors_z.shape)
                 # rec_proto = torch.einsum('bi, ij -> bij', s, prototype_vectors)
-                rec_proto = model.dec.forward(feature_vectors_softmin.reshape(feature_vectors_z.shape))
+                rec_proto = model.dec.forward(feature_vectors_softmin)
 
                 mse = torch.nn.MSELoss()
                 if config['mse']:
                     softmin_proto_recon_loss = mse(rec_proto, imgs)
                 else:
                     softmin_proto_recon_loss = torch.mean(list_of_norms(rec_proto - imgs))
+
+                loss_enc_mse = mse(feature_vectors_softmin, feature_vectors_z)
 
             z_recon_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_z'] != 0:
@@ -225,7 +245,10 @@ def train(model, data_loader, log_samples):
             loss = config['lambda_z'] * z_recon_loss + \
                    config['lambda_min_proto'] * min_proto_recon_loss + \
                    config['lambda_softmin_proto'] * softmin_proto_recon_loss + \
-                   config['lambda_r1'] * r1_loss
+                   config['lambda_r1'] * r1_loss + \
+                   config['lambda_r2'] * r2_loss + \
+                   config['lambda_enc_mse'] * loss_enc_mse + \
+                   config['lambda_ad'] * loss_ad
 
             loss.backward()
 
@@ -239,6 +262,10 @@ def train(model, data_loader, log_samples):
             loss_dict['softmin_proto_recon_loss'] += softmin_proto_recon_loss.item()
 
             loss_dict['r1_loss'] += r1_loss.item()
+            loss_dict['r2_loss'] += r2_loss.item()
+            loss_dict['enc_mse_loss'] += loss_enc_mse.item()
+            loss_dict['ad_loss'] += loss_ad.item()
+
             loss_dict['loss'] += loss.item()
 
         for key in loss_dict.keys():
@@ -274,8 +301,8 @@ def train(model, data_loader, log_samples):
 
                 # visualize the prototype images
                 n_cols = 3
-                n_rows = config['n_prototype_vectors'] // n_cols + 1 if config['n_prototype_vectors'] % n_cols != 0 else \
-                config['n_prototype_vectors'] // n_cols
+                n_rows = 2#config['n_prototype_vectors'] // n_cols + 1 if config['n_prototype_vectors'] % n_cols != 0 else \
+                    #config['n_prototype_vectors'] // n_cols
                 g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))
                 for i in range(n_rows):
                     for j in range(n_cols):
@@ -460,6 +487,6 @@ if __name__ == '__main__':
                  n_z=config['n_z'], filter_dim=config['filter_dim'],
                  n_prototype_vectors=config['n_prototype_vectors'],
                  n_prototype_groups=config['n_prototype_groups'],
-                 train_pw=False)
+                 train_pw=config['train_weighted_protos'])
     _model = _model.to(config['device'])
     train(_model, _data_loader, x_set)
