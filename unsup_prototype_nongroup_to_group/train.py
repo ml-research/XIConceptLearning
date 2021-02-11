@@ -34,13 +34,14 @@ config = dict({
     'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
     'lambda_r1': 1e-2,  # draws prototype close to training example
     'lambda_r2': 0, #1e-2,  # draws encoding close to prototype
-    'lambda_enc_mse': 0,
-    'lambda_ad': 1e-2,
+    'lambda_enc_mse': 0.5, #0.5 for linear, conv, attention
+    'lambda_ad': 0,#1e-2,
     'diversity_threshold': 2,  # 1-2 suggested by paper
     'train_weighted_protos': False,
 
     'learning_rate': 1e-3,
-    'lr_scheduler': True,
+    'lr_scheduler': False,
+    'lr_scheduler_warmup_steps': 800,
     'batch_size': 1000,
     'n_workers': 2,
     'n_prototype_vectors': [4, 2],
@@ -69,6 +70,9 @@ def get_args():
     parser.add_argument(
         "-e", "--epochs", type=int, default=500, help="num of epochs to train"
     )
+    parser.add_argument(
+        "--agg-type", type=str, default='sum', help="type of prototype aggregation layer"
+    )
 
     parser.add_argument(
         "-pv", "--prototype-vectors", nargs="+", default=None,
@@ -83,12 +87,13 @@ def get_args():
 def train(model, data_loader, log_samples):
     # optimizer setup
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-
     # learning rate scheduler
     if config['lr_scheduler']:
         # TODO: try LambdaLR
         num_steps = len(data_loader) * config['training_epochs']
+        num_steps += config['lr_scheduler_warmup_steps']
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
+
 
     rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['training_epochs'])
     rtpt.start()
@@ -182,7 +187,7 @@ def train(model, data_loader, log_samples):
             loss.backward()
             optimizer.step()
 
-            if config['lr_scheduler']:
+            if config['lr_scheduler'] and e > config['lr_scheduler_warmup_steps']:
                 scheduler.step()
 
             loss_dict['img_recon_loss'] += img_recon_loss.item()
@@ -202,6 +207,8 @@ def train(model, data_loader, log_samples):
         rtpt.step(subtitle=f'loss={loss_dict["loss"]:2.2f}')
 
         if (e + 1) % config['display_step'] == 0 or e == config['training_epochs'] - 1:
+            cur_lr = optimizer.param_groups[0]["lr"]
+            writer.add_scalar("lr", cur_lr, global_step=e)
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
 
@@ -286,6 +293,7 @@ if __name__ == '__main__':
     config['seed'] = _args.seed
     config['n_prototype_vectors'] = _args.prototype_vectors
     config['training_epochs'] = _args.epochs
+    config['agg_type'] = _args.agg_type
     config['n_prototype_groups'] = len(_args.prototype_vectors)
     if config['experiment_name'] == '':
         config['experiment_name'] = 'seed' + str(config['seed']) + '_' \
@@ -327,7 +335,8 @@ if __name__ == '__main__':
                  n_z=config['n_z'], filter_dim=config['filter_dim'],
                  n_prototype_vectors=config['n_prototype_vectors'],
                  train_pw=config['train_weighted_protos'],
-                 device=config['device'])
+                 device=config['device'],
+                 agg_type=config['agg_type'])
 
     _model = _model.to(config['device'])
 

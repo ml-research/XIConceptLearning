@@ -23,9 +23,6 @@ def plot_prototypes(model, prototype_vectors, writer, e, config):
             prototype_vectors[group_id]).detach().cpu()
 
         # visualize the prototype images
-        n_cols = 3
-        n_rows = 2
-        #g, b = plt.subplots(n_rows, n_cols, figsize=(n_cols, n_rows))
         cnt = 321
         for p in prototype_imgs:
             plt.subplot(cnt)
