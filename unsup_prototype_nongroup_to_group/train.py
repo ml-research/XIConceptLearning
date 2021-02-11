@@ -14,12 +14,13 @@ from rtpt.rtpt import RTPT
 from torch.optim import lr_scheduler
 
 import utils as utils
+import losses as losses
 from model import RAE
 from autoencoder_helpers import makedirs, list_of_distances
 
 # TODO: convert config fully to argparse?
 config = dict({
-    'device': 'cuda:0',
+    'device': 'cuda',
     # 'device': 'cpu',
 
     'save_step': 50,
@@ -117,19 +118,19 @@ def train(model, data_loader, log_samples):
             rec_imgs, rec_protos, dists, feature_vectors_z, prototype_vectors = model.forward(imgs, std)
 
             # draws prototype close to training example
-            r1_loss = 0
-            for k in range(config['n_prototype_groups']):
-                r1_loss += torch.mean(torch.min(
-                    list_of_distances(prototype_vectors[k],
-                                      feature_vectors_z.view(-1, model.dim_prototype)),
-                    dim=1)[0])
+            r1_loss = torch.zeros((1,)).to(config['device'])
+            if config['lambda_r1'] != 0:
+                r1_loss = losses.r1_loss(prototype_vectors, feature_vectors_z, model.dim_prototype, config)
+
             # draws encoding close to prototype
-            r2_loss = 0
-            for k in range(config['n_prototype_groups']):
-                r2_loss += torch.mean(torch.min(
-                    list_of_distances(feature_vectors_z.view(-1, model.dim_prototype),
-                                      prototype_vectors[k]),
-                    dim=1)[0])
+            r2_loss = torch.zeros((1,)).to(config['device'])
+            if config['lambda_r2'] != 0:
+                r2_loss = losses.r2_loss(prototype_vectors, feature_vectors_z, model.dim_prototype, config)
+
+            # TODO: not yet implemented
+            # ad_loss = torch.zeros((1,)).to(config['device'])
+            # if config['lambda_ad'] != 0:
+            #     ad_loss = losses.ad_loss()
 
             # TODO: can we remove this?
             # # diversity regularization
@@ -154,6 +155,7 @@ def train(model, data_loader, log_samples):
             if config['lambda_z'] != 0:
                 img_recon_loss = mse(rec_imgs, imgs)
 
+            # TODO: do we need this?
             # get prototype with min distance to z
             min_proto_recon_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_min_proto'] != 0:
