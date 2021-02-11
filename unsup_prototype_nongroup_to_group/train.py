@@ -34,7 +34,7 @@ config = dict({
     'lambda_softmin_proto': 5,  # decode softmin weighted combination of prototypes
     'lambda_r1': 1e-2,  # draws prototype close to training example
     'lambda_r2': 0, #1e-2,  # draws encoding close to prototype
-    'lambda_enc_mse': 0.5, #0.5 for linear, conv, attention
+    'lambda_enc_mse': 0.05, #0.5 for linear, conv; 0.05 for attention
     'lambda_ad': 0,#1e-2,
     'diversity_threshold': 2,  # 1-2 suggested by paper
     'train_weighted_protos': False,
