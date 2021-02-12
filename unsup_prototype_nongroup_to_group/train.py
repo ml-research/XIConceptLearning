@@ -129,7 +129,7 @@ def train(model, data_loader, log_samples):
             utils.plot_prototypes(model, prototype_vectors, writer, config, step=e)
 
             # plot a few samples with proto recon
-            utils.plot_examples(log_samples, model, writer, config, step=0)
+            utils.plot_examples(log_samples, model, writer, config, step=e)
 
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 

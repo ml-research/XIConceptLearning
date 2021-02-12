@@ -93,6 +93,7 @@ class RAE(nn.Module):
         # decode mixed prototypes
         recon_proto = self.dec_prototypes(mixed_prototypes)
 
+        # decode latent encoding
         recon_img = self.dec(latent_encoding)
 
         return recon_img, recon_proto, mixed_prototypes

@@ -177,6 +177,7 @@ class _ProtoAggAttentionLayer(nn.Module):
         self.qTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
         self.kTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
         self.vTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
+        self.linear_out = torch.nn.Linear(dim_protos, dim_protos)
 
     def forward(self, x):
         # 3 tansformations on input then attention
@@ -216,7 +217,9 @@ class _ProtoAggAttentionLayer(nn.Module):
             .view(bs, -1, self.dim_protos).squeeze()
         # torch.Size([bs, dim_protos])
         out = torch.sum(concat, dim=1)
+        out = self.linear_out(out)
         return out
+
 
 class DenseLayerSoftmax(nn.Module):
     def __init__(self, input_dim=10, output_dim=10):

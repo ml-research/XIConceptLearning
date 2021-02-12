@@ -37,7 +37,7 @@ def _get_parser():
     parser.add_argument('-bs', '--batch-size', type=int, default=500, help='batch size')
     parser.add_argument('-e', '--epochs', type=int, default=500, help='batch size')
     parser.add_argument('--n-workers', type=float, default=2, help='workers to load data')
-    parser.add_argument('-pv', '--prototype-vectors', nargs='+', default=[],
+    parser.add_argument('-pv', '--prototype-vectors', type=int ,nargs='+', default=[],
                         help='List of img shape dims [#p1, #p2, ...]')
     parser.add_argument('--filter-dim', type=int, default=32, help='filter dimensions for encoder')
     parser.add_argument('--n-z', type=int, default=10, help='latent dimensions')
@@ -47,7 +47,7 @@ def _get_parser():
     parser.add_argument('--results-dir', type=str, default='results_group', help='results directory')
     parser.add_argument('--model-dir', type=str, default='states', help='model directory')
     parser.add_argument('--img-dir', type=str, default='imgs', help='image\plot directory')
-    parser.add_argument('-dd', '--data-dir', type=str, default='../data', help='data directory')
+    parser.add_argument('-dd', '--data-dir', type=str, default='Data', help='data directory')
 
     parser.add_argument('-s', '--seed', type=int, default=42, help='seed')
 
@@ -64,7 +64,7 @@ def parse_args(argv):
     parser = _get_parser()
     args = parser.parse_args(argv)
 
-    args.prototype_vectors = [int(n) for n in args.prototype_vectors[0].split(',')]
+    #args.prototype_vectors = [int(n) for n in args.prototype_vectors[0].split(',')]
     args.n_prototype_groups = len(args.prototype_vectors)
     if args.exp_name == '':
         args.exp_name = 'seed' + str(args.seed) + '_' \
