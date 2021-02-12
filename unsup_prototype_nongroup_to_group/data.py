@@ -80,3 +80,20 @@ def load_data(config):
 
     else:
         raise ValueError('Select valid dataset please: mnist, toycolor')
+
+
+def get_test_set(data_loader, config):
+    x_set = []
+    if config['dataset'] in ['toycolorshape', 'toycolor', 'toycolorshapesize']:
+        # generate set of all individual samples
+        x = data_loader.dataset.tensors[0].detach().numpy().tolist()
+        y = data_loader.dataset.tensors[1].detach().numpy().tolist()
+        y_set = np.unique(y, axis=0).tolist()
+        x_set = []
+        for u in y_set:
+            x_set.append(x[y.index(u)])
+        x_set = torch.Tensor(x_set)
+        x_set = x_set.to(config['device'])
+
+    return x_set
+

@@ -83,26 +83,25 @@ class ConvTransLayer(nn.Module):
 
 
 class PrototypeLayer(nn.Module):
-    def __init__(self, input_dim=10, n_prototype_vectors=(10,), device="cpu"):
+    def __init__(self, input_dim=10, n_proto_vecs=(10,), device="cpu"):
         super(PrototypeLayer, self).__init__()
-        self.n_prototype_vectors = n_prototype_vectors
-        self.n_prototype_groups = len(n_prototype_vectors)
+        self.n_proto_vecs = n_proto_vecs
+        self.n_proto_groups = len(n_proto_vecs)
         self.device = device
 
-        prototype_vector_list = []
-        print(n_prototype_vectors)
-        for num_protos in n_prototype_vectors:
+        proto_vecs_list = []
+        # print(n_proto_vecs)
+        for num_protos in n_proto_vecs:
             p = torch.nn.Parameter(torch.rand(num_protos, input_dim, device=self.device))
             nn.init.xavier_uniform_(p, gain=1.0)
-            prototype_vector_list.append(p)
+            proto_vecs_list.append(p)
 
-        self.prototype_vectors = nn.ParameterList(prototype_vector_list)
+        self.proto_vecs = nn.ParameterList(proto_vecs_list)
 
     def forward(self, x):
         out = dict()
-        for k in range(len(self.prototype_vectors)):
-            #tmp = torch.empty(x.shape[0], len(self.prototype_vectors[k]), device=self.device)
-            out[k] = list_of_distances(x, self.prototype_vectors[k])
+        for k in range(len(self.proto_vecs)):
+            out[k] = list_of_distances(x, self.proto_vecs[k])
         return out
 
 
@@ -130,12 +129,12 @@ class _ProtoAggSumLayer(nn.Module):
     def __init__(self, n_protos, dim_protos, train_pw, device="cpu"):
         super(_ProtoAggSumLayer, self).__init__()
         self.device = device
-        self.weights_prototypes = torch.nn.Parameter(torch.ones(n_protos,
+        self.weights_protos = torch.nn.Parameter(torch.ones(n_protos,
                                                                 dim_protos))
-        self.weights_prototypes.requires_grad = train_pw
+        self.weights_protos.requires_grad = train_pw
 
     def forward(self, x):
-        out = torch.mul(self.weights_prototypes, x)  # [batch, n_groups, dim_protos]
+        out = torch.mul(self.weights_protos, x)  # [batch, n_groups, dim_protos]
         # average over the groups, yielding a combined prototype per sample
         out = torch.mean(out, dim=1)  # [batch, dim_protos]
         return out

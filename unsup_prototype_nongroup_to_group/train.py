@@ -13,20 +13,11 @@ from torch.optim import lr_scheduler
 
 import unsup_prototype_nongroup_to_group.utils as utils
 import unsup_prototype_nongroup_to_group.losses as losses
+import unsup_prototype_nongroup_to_group.data as data
 from unsup_prototype_nongroup_to_group.model import RAE
-from unsup_prototype_nongroup_to_group.data import get_dataloader
 
 
-def train(model, data_loader, log_samples):
-    # optimizer setup
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
-    # learning rate scheduler
-    scheduler = None
-    if config['lr_scheduler']:
-        # TODO: try LambdaLR
-        num_steps = len(data_loader) * config['epochs']
-        num_steps += config['lr_scheduler_warmup_steps']
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
+def train(model, data_loader, log_samples, optimizer, scheduler, writer):
 
     rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
     rtpt.start()
@@ -45,24 +36,25 @@ def train(model, data_loader, log_samples):
 
             std = (config['epochs'] - e) / config['epochs']
 
-            rec_imgs, rec_protos, dists, feature_vectors_z, prototype_vectors, mixed_prototypes = model.forward(imgs,
-                                                                                                                std)
+            res_dict = model.forward(imgs, std)
+
+            rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_r1'] != 0:
-                r1_loss = losses.r1_loss(prototype_vectors, feature_vectors_z, model.dim_prototype, config)
+                r1_loss = losses.r1_loss(proto_vecs, feature_vecs_z, model.dim_prototype, config)
 
             # draws encoding close to prototype
             r2_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_r2'] != 0:
-                r2_loss = losses.r2_loss(prototype_vectors, feature_vectors_z, model.dim_prototype, config)
+                r2_loss = losses.r2_loss(proto_vecs, feature_vecs_z, model.dim_prototype, config)
 
             loss_ad = torch.zeros((1,)).to(config['device'])
 
             if config['lambda_ad'] != 0:
-                for k in range(len(prototype_vectors)):
-                    loss_ad += torch.mean(torch.sqrt(torch.sum(prototype_vectors[k].T ** 2, dim=1)), dim=0)
+                for k in range(len(proto_vecs)):
+                    loss_ad += torch.mean(torch.sqrt(torch.sum(proto_vecs[k].T ** 2, dim=1)), dim=0)
 
             softmin_proto_recon_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_softmin_proto'] != 0:
@@ -72,7 +64,7 @@ def train(model, data_loader, log_samples):
             if config['lambda_z'] != 0:
                 img_recon_loss = mse(rec_imgs, imgs)
 
-            loss_enc_mse = mse(mixed_prototypes, feature_vectors_z.flatten(1, 3))
+            loss_enc_mse = mse(agg_protos, feature_vecs_z.flatten(1, 3))
 
             loss = config['lambda_z'] * img_recon_loss + \
                    config['lambda_softmin_proto'] * softmin_proto_recon_loss + \
@@ -126,7 +118,7 @@ def train(model, data_loader, log_samples):
             torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
             # plot the indivisual prototypes of each group
-            utils.plot_prototypes(model, prototype_vectors, writer, config, step=e)
+            utils.plot_prototypes(model, proto_vecs, writer, config, step=e)
 
             # plot a few samples with proto recon
             utils.plot_examples(log_samples, model, writer, config, step=e)
@@ -134,22 +126,13 @@ def train(model, data_loader, log_samples):
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 
 
-if __name__ == '__main__':
-    # get config
-    config = parse_args_as_dict(sys.argv[1:])
+def main(config):
 
-    # get data
-    _data_loader = get_dataloader(config)
+    # get train data
+    _data_loader = data.get_dataloader(config)
 
-    # generate set of all individual samples
-    x = _data_loader.dataset.tensors[0].detach().numpy().tolist()
-    y = _data_loader.dataset.tensors[1].detach().numpy().tolist()
-    y_set = np.unique(y, axis=0).tolist()
-    x_set = []
-    for u in y_set:
-        x_set.append(x[y.index(u)])
-    x_set = torch.Tensor(x_set)
-    x_set = x_set.to(config['device'])
+    # get test set samples
+    test_set = data.get_test_set(_data_loader, config)
 
     # create tb writer
     writer = SummaryWriter(log_dir=config['results_dir'])
@@ -169,12 +152,30 @@ if __name__ == '__main__':
     # model setup
     _model = RAE(input_dim=(1, config['img_shape'][0], config['img_shape'][1], config['img_shape'][2]),
                  n_z=config['n_z'], filter_dim=config['filter_dim'],
-                 n_prototype_vectors=config['prototype_vectors'],
+                 n_proto_vecs=config['prototype_vectors'],
                  train_pw=config['train_weighted_protos'],
                  device=config['device'],
                  agg_type=config['agg_type'])
 
     _model = _model.to(config['device'])
 
+    # optimizer setup
+    optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])
+
+    # learning rate scheduler
+    scheduler = None
+    if config['lr_scheduler']:
+        # TODO: try LambdaLR
+        num_steps = len(_data_loader) * config['epochs']
+        num_steps += config['lr_scheduler_warmup_steps']
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
+
     # start training
-    train(_model, _data_loader, x_set)
+    train(_model, _data_loader, test_set, optimizer, scheduler, writer)
+
+
+if __name__ == '__main__':
+    # get config
+    config = parse_args_as_dict(sys.argv[1:])
+
+    main(config)

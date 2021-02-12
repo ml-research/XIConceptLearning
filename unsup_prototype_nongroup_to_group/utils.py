@@ -8,12 +8,33 @@ from PIL import Image
 
 
 def set_seed(seed=42):
+    """
+    Set random seeds for all possible random processes.
+    :param seed: int
+    :return:
+    """
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def unfold_res_dict(res_dict):
+    """
+    Takes results dict from model forward pass, unwraps all variables and returns these.
+    :param res_dict: dict from model forward pass
+    :return: all result variable
+    """
+    rec_imgs = res_dict['recon_imgs']
+    rec_protos = res_dict['recon_protos']
+    dists = res_dict['dists']
+    s_weights = res_dict['s_weights']
+    feature_vecs_z = res_dict['latent_enc']
+    proto_vecs = res_dict['proto_vecs']
+    agg_protos = res_dict['agg_protos']
+    return rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos
 
 
 def plot_prototypes(model, prototype_vectors, writer, config, step=0):
@@ -91,8 +112,10 @@ def plot_examples(log_samples, model, writer, config, step=0):
 
 
 def makedirs(path):
-    '''
-    if path does not exist in the file system, create it
-    '''
+    """
+    If path does not exist in the file system, create it
+    :param path:
+    :return:
+    """
     if not os.path.exists(path):
         os.makedirs(path)
