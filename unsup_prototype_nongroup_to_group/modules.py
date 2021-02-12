@@ -115,6 +115,8 @@ class ProtoAggregateLayer(nn.Module):
             self.net = _ProtoAggDenseLayer(n_protos, dim_protos)
         elif layer_type == 'conv':
             self.net = _ProtoAggChannelConvLayer(n_protos, dim_protos)
+        elif layer_type == 'simple_attention':
+            self.net = _ProtoAggAttentionLayer(n_protos, dim_protos)
         elif layer_type == 'attention':
             self.net = _ProtoAggAttentionLayer(n_protos, dim_protos)
             #raise ValueError('Aggregation layer type not supported. Please email wolfgang.stammer@cs.tu-darmstadt.de')
@@ -167,15 +169,13 @@ class _ProtoAggChannelConvLayer(nn.Module):
         return out
 
 
-class _ProtoAggAttentionLayer(nn.Module):
+class _ProtoAggAttentionSimpleLayer(nn.Module):
     def __init__(self, n_protos, dim_protos, device="cpu"):
-        super(_ProtoAggAttentionLayer, self).__init__()
+        super(_ProtoAggAttentionSimpleLayer, self).__init__()
         self.device = device
         self.n_protos = n_protos
         self.dim_protos = dim_protos
         self.qTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
-        self.kTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
-        self.vTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
         self.linear_out = torch.nn.Linear(dim_protos, dim_protos)
 
     def forward(self, x):
@@ -187,7 +187,20 @@ class _ProtoAggAttentionLayer(nn.Module):
         out = torch.sum(out, dim=1)
         return out
 
-    def _forward(self, x):
+
+class _ProtoAggAttentionLayer(nn.Module):
+    def __init__(self, n_protos, dim_protos, device="cpu"):
+        super(_ProtoAggAttentionLayer, self).__init__()
+        self.device = device
+        self.n_protos = n_protos
+        self.dim_protos = dim_protos
+        self.qTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
+        self.kTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
+        self.vTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
+        self.linear_out = torch.nn.Linear(dim_protos, dim_protos)
+
+
+    def forward(self, x):
         bs = x.size(0)
         # 3 tansformations on input then attention
         # x: [batch, n_groups, dim_protos]

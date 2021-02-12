@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import modules as modules
+from dataclass_dict import create_dataclass_dict
+
 
 class RAE(nn.Module):
-    def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32,
+    def __init__(self, input_dim=(1, 1, 28, 28), n_z=10, filter_dim=32,
                  n_proto_vecs=(10,),
                  train_pw=False, softmin_temp=1, agg_type='sum',
                  device="cpu"):
@@ -18,11 +20,11 @@ class RAE(nn.Module):
 
         # encoder
         self.enc = modules.Encoder(input_dim=input_dim[1], filter_dim=filter_dim, output_dim=n_z)
-        
+
         # forward encoder to determine input dim for prototype layer
         self.enc_out = self.enc.forward(torch.randn(input_dim))
         self.latent_shape = list(self.enc_out.shape[1:])
-        self.dim_proto = self.enc_out.view(-1,1).shape[0]
+        self.dim_proto = self.enc_out.view(-1, 1).shape[0]
 
         # prototype layer
         self.proto_layer = modules.PrototypeLayer(input_dim=self.dim_proto,
@@ -44,7 +46,7 @@ class RAE(nn.Module):
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
         self.softmin = torch.nn.Softmin(dim=1)
-        self.softmin_temp = nn.Parameter(torch.ones(softmin_temp,))
+        self.softmin_temp = nn.Parameter(torch.ones(softmin_temp, ))
         self.softmin_temp.requires_grad = False
 
     def comp_weighted_prototype_per_group(self, dists, proto_vecs):
@@ -64,7 +66,7 @@ class RAE(nn.Module):
         # stores the softmin weights
         s_weights = dict()
         for k in range(self.n_proto_groups):
-            s_weights[k] = self.softmin(self.softmin_temp*dists[k])
+            s_weights[k] = self.softmin(self.softmin_temp * dists[k])
             proto_vecs_softmin[:, k] = s_weights[k] @ proto_vecs[k]
 
         return proto_vecs_softmin, s_weights
@@ -109,26 +111,26 @@ class RAE(nn.Module):
     def forward(self, x, std=None):
         latent_enc = self.forward_encoder(x)
         # compute the distance of the training example to the prototype of each group
-        dists = self.proto_layer(latent_enc.view(-1, self.dim_proto)) # [batch, n_group, n_proto]
+        dists = self.proto_layer(latent_enc.view(-1, self.dim_proto))  # [batch, n_group, n_proto]
 
         if std:
             # add gaussian noise to prototypes to avoid local optima
             for i in range(self.n_proto_groups):
-                dists[i] += torch.normal(torch.zeros_like(dists[i]), std) # [batch, n_group, n_proto]
+                dists[i] += torch.normal(torch.zeros_like(dists[i]), std)  # [batch, n_group, n_proto]
 
         recon_img, recon_proto, agg_proto, s_weights = self.forward_decoder(latent_enc, dists)
 
-        res_dict = self.create_res_dict(recon_img, recon_proto, dists, s_weights, latent_enc,
+        res = self.create_res_dict(recon_img, recon_proto, dists, s_weights, latent_enc,
                                         self.proto_layer.proto_vecs, agg_proto)
 
-        return res_dict
+        return res
 
     def create_res_dict(self, recon_img, recon_proto, dists, s_weights, latent_enc, proto_vecs, agg_proto):
-        res_dict = {'recon_imgs': recon_img,
-                    'recon_protos': recon_proto,
-                    'dists': dists,
-                    's_weights': s_weights,
-                    'latent_enc': latent_enc,
-                    'proto_vecs': proto_vecs,
-                    'agg_protos': agg_proto}
-        return res_dict
+        instance = create_dataclass_dict({'rec_imgs': recon_img,
+                                          'rec_protos': recon_proto,
+                                          'dists': dists,
+                                          's_weights': s_weights,
+                                          'feature_vecs_z': latent_enc,
+                                          'proto_vecs': proto_vecs,
+                                          'agg_protos': agg_proto})
+        return instance

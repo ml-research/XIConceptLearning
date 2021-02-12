@@ -36,35 +36,35 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
             std = (config['epochs'] - e) / config['epochs']
 
-            res_dict = model.forward(imgs, std)
+            res = model.forward(imgs, std)
 
-            rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
+            #rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
-            if config['lambda_r1'] != 0:
-                r1_loss = losses.r1_loss(proto_vecs, feature_vecs_z, model.dim_proto, config)
+            #if config['lambda_r1'] != 0:
+            r1_loss = losses.r1_loss(res.proto_vecs, res.feature_vecs_z, model.dim_proto, config)
 
             # draws encoding close to prototype
             r2_loss = torch.zeros((1,)).to(config['device'])
-            if config['lambda_r2'] != 0:
-                r2_loss = losses.r2_loss(proto_vecs, feature_vecs_z, model.dim_proto, config)
+            #if config['lambda_r2'] != 0:
+            r2_loss = losses.r2_loss(res.proto_vecs, res.feature_vecs_z, model.dim_proto, config)
 
             loss_ad = torch.zeros((1,)).to(config['device'])
 
-            if config['lambda_ad'] != 0:
-                for k in range(len(proto_vecs)):
-                    loss_ad += torch.mean(torch.sqrt(torch.sum(proto_vecs[k].T ** 2, dim=1)), dim=0)
+            #if config['lambda_ad'] != 0:
+            for k in range(len(res.proto_vecs)):
+                loss_ad += torch.mean(torch.sqrt(torch.sum(res.proto_vecs[k].T ** 2, dim=1)), dim=0)
 
             softmin_proto_recon_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_softmin_proto'] != 0:
-                softmin_proto_recon_loss = mse(rec_protos, imgs)
+                softmin_proto_recon_loss = mse(res.rec_protos, imgs)
 
             img_recon_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_z'] != 0:
-                img_recon_loss = mse(rec_imgs, imgs)
+                img_recon_loss = mse(res.rec_imgs, imgs)
 
-            loss_enc_mse = mse(agg_protos, feature_vecs_z.flatten(1, 3))
+            loss_enc_mse = mse(res.agg_protos, res.feature_vecs_z.flatten(1, 3))
 
             loss = config['lambda_z'] * img_recon_loss + \
                    config['lambda_softmin_proto'] * softmin_proto_recon_loss + \
@@ -118,7 +118,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
             # plot the indivisual prototypes of each group
-            utils.plot_prototypes(model, proto_vecs, writer, config, step=e)
+            utils.plot_prototypes(model, res.proto_vecs, writer, config, step=e)
 
             # plot a few samples with proto recon
             utils.plot_examples(log_samples, model, writer, config, step=e)
