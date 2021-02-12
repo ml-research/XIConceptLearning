@@ -43,7 +43,7 @@ def _get_parser():
     parser.add_argument('--model-dir', type=str, default='states', help='model directory')
     parser.add_argument('--img-dir', type=str, default='imgs', help='image\plot directory')
 
-    parser.add_argument('--seed', type=int, default=42, help='seed')
+    parser.add_argument('-s', '--seed', type=int, default=42, help='seed')
 
     parser.add_argument('--dataset', type=str, default='toycolor', help="'toycolor' or 'mnist' or 'toycolorshape' or 'toyshapesize' or 'toycolorshapesize'")
 

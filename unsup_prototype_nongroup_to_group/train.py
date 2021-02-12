@@ -25,12 +25,12 @@ def train(model, data_loader, log_samples):
     # learning rate scheduler
     if config['lr_scheduler']:
         # TODO: try LambdaLR
-        num_steps = len(data_loader) * config['training_epochs']
+        num_steps = len(data_loader) * config['epochs']
         num_steps += config['lr_scheduler_warmup_steps']
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
 
 
-    rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['training_epochs'])
+    rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
     rtpt.start()
 
     mse = torch.nn.MSELoss()
@@ -104,7 +104,7 @@ def train(model, data_loader, log_samples):
 
         rtpt.step(subtitle=f'loss={loss_dict["loss"]:2.2f}')
 
-        if (e + 1) % config['display_step'] == 0 or e == config['training_epochs'] - 1:
+        if (e + 1) % config['display_step'] == 0 or e == config['epochs'] - 1:
             cur_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("lr", cur_lr, global_step=e)
             for key in loss_dict.keys():
