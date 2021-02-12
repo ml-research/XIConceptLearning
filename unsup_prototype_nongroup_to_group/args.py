@@ -47,14 +47,13 @@ def _get_parser():
     parser.add_argument('--results-dir', type=str, default='results_group', help='results directory')
     parser.add_argument('--model-dir', type=str, default='states', help='model directory')
     parser.add_argument('--img-dir', type=str, default='imgs', help='image\plot directory')
-    parser.add_argument('--data-dir', type=str, default='../Data', help='data directory')
+    parser.add_argument('-dd', '--data-dir', type=str, default='../data', help='data directory')
 
     parser.add_argument('-s', '--seed', type=int, default=42, help='seed')
 
     parser.add_argument('-d', '--dataset', type=str, default='toycolor',
                         help="'toycolor' or 'mnist' or 'toycolorshape' or 'toyshapesize' or 'toycolorshapesize'")
 
-    parser.add_argument('-dp', '--data_path', type=str, default='data')
     return parser
 
 
