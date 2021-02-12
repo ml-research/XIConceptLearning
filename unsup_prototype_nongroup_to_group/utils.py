@@ -73,7 +73,8 @@ def plot_examples(log_samples, model, writer, config, step=0):
     imgs = log_samples
     examples_to_show = len(log_samples)
 
-    _, rec_protos, _, _, _, _ = model.forward(imgs[:examples_to_show], std=0)
+    res_dict = model.forward(imgs[:examples_to_show], std=0)
+    _, rec_protos, _, _, _, _, _ = unfold_res_dict(res_dict)
     rec_protos = rec_protos.detach().cpu()
 
     imgs = imgs.detach().cpu()

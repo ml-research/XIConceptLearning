@@ -53,6 +53,8 @@ def _get_parser():
 
     parser.add_argument('-d', '--dataset', type=str, default='toycolor',
                         help="'toycolor' or 'mnist' or 'toycolorshape' or 'toyshapesize' or 'toycolorshapesize'")
+    parser.add_argument('--initials', type=str, required=True,
+                        help="Your initials")
 
     return parser
 

@@ -118,7 +118,7 @@ class RAE(nn.Module):
 
         recon_img, recon_proto, agg_proto, s_weights = self.forward_decoder(latent_enc, dists)
 
-        res_dict = self.create_res_dict(self, recon_img, recon_proto, dists, s_weights, latent_enc,
+        res_dict = self.create_res_dict(recon_img, recon_proto, dists, s_weights, latent_enc,
                                         self.proto_layer.proto_vecs, agg_proto)
 
         return res_dict

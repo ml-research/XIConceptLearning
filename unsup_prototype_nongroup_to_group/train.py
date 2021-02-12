@@ -17,9 +17,9 @@ import unsup_prototype_nongroup_to_group.data as data
 from unsup_prototype_nongroup_to_group.model import RAE
 
 
-def train(model, data_loader, log_samples, optimizer, scheduler, writer):
+def train(model, data_loader, log_samples, optimizer, scheduler, writer, config):
 
-    rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
+    rtpt = RTPT(name_initials=config['initials'], experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
     rtpt.start()
 
     mse = torch.nn.MSELoss()
@@ -43,12 +43,12 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer):
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_r1'] != 0:
-                r1_loss = losses.r1_loss(proto_vecs, feature_vecs_z, model.dim_prototype, config)
+                r1_loss = losses.r1_loss(proto_vecs, feature_vecs_z, model.dim_proto, config)
 
             # draws encoding close to prototype
             r2_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_r2'] != 0:
-                r2_loss = losses.r2_loss(proto_vecs, feature_vecs_z, model.dim_prototype, config)
+                r2_loss = losses.r2_loss(proto_vecs, feature_vecs_z, model.dim_proto, config)
 
             loss_ad = torch.zeros((1,)).to(config['device'])
 
@@ -171,7 +171,7 @@ def main(config):
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
 
     # start training
-    train(_model, _data_loader, test_set, optimizer, scheduler, writer)
+    train(_model, _data_loader, test_set, optimizer, scheduler, writer, config)
 
 
 if __name__ == '__main__':
