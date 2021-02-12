@@ -90,6 +90,7 @@ class PrototypeLayer(nn.Module):
         self.device = device
 
         prototype_vector_list = []
+        print(n_prototype_vectors)
         for num_protos in n_prototype_vectors:
             p = torch.nn.Parameter(torch.rand(num_protos, input_dim, device=self.device))
             nn.init.xavier_uniform_(p, gain=1.0)
@@ -172,6 +173,7 @@ class _ProtoAggAttentionLayer(nn.Module):
         super(_ProtoAggAttentionLayer, self).__init__()
         self.device = device
         self.n_protos = n_protos
+        self.dim_protos = dim_protos
         self.qTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
         self.kTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
         self.vTransf = nn.ModuleList([torch.nn.Linear(dim_protos, dim_protos) for _ in range(n_protos)])
@@ -179,14 +181,41 @@ class _ProtoAggAttentionLayer(nn.Module):
     def forward(self, x):
         # 3 tansformations on input then attention
         # x: [batch, n_groups, dim_protos]
+        q = torch.stack([self.qTransf[i](x[:, i]) for i in range(self.n_protos)], dim=1)
+        att = q  # torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.n_protos)
+        out = torch.mul(F.softmax(att, dim=1), x)
+        out = torch.sum(out, dim=1)
+        return out
 
+    def _forward(self, x):
+        bs = x.size(0)
+        # 3 tansformations on input then attention
+        # x: [batch, n_groups, dim_protos]
         q = torch.stack([self.qTransf[i](x[:,i]) for i in range(self.n_protos)], dim=1)
         k = torch.stack([self.kTransf[i](x[:, i]) for i in range(self.n_protos)], dim=1)
         v = torch.stack([self.vTransf[i](x[:, i]) for i in range(self.n_protos)], dim=1)
 
-        att = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.n_protos)
-        out = torch.matmul(F.softmax(att, dim=1), v)
-        out = torch.sum(out, dim=1)
+        q = q.view(bs, self.n_protos, 1, self.dim_protos)  # q torch.Size([bs, groups, 1, dim_protos])
+        k = k.view(bs, self.n_protos, 1, self.dim_protos)
+        v = v.view(bs, self.n_protos, 1, self.dim_protos)
+
+        k = k.transpose(1, 2) # q torch.Size([bs, 1, groups, dim_protos])
+        q = q.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        # torch.Size([bs, 1, groups, groups])
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.dim_protos)
+
+        # torch.Size([bs, 1, groups, groups])
+        scores = F.softmax(scores, dim=-1)
+        # torch.Size([bs, 1, groups, dim_protos])
+        output = torch.matmul(scores, v)
+
+        # torch.Size([bs, groups, dim_protos])
+        concat = output.transpose(1, 2).contiguous() \
+            .view(bs, -1, self.dim_protos).squeeze()
+        # torch.Size([bs, dim_protos])
+        out = torch.sum(concat, dim=1)
         return out
 
 class DenseLayerSoftmax(nn.Module):

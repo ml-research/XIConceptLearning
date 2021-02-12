@@ -82,8 +82,26 @@ class RAE(nn.Module):
         """
         return self.dec(prototypes.reshape([prototypes.shape[0]] + self.latent_shape))
 
+    def forward_decoder(self, latent_encoding, dists):
+        # compute the softmin weighted prototype per group
+        prototype_vectors_softmin = self.comp_weighted_prototype_per_group(dists,
+                                                                           self.prototype_layer.prototype_vectors)  # [batch, n_group, dim_proto]
+
+        # combine the prototypes per group to a single prototype, i.e. a mixture over all group prototypes
+        mixed_prototypes = self.comp_combined_prototype_per_sample(prototype_vectors_softmin)  # [batch, dim_proto]
+
+        # decode mixed prototypes
+        recon_proto = self.dec_prototypes(mixed_prototypes)
+
+        recon_img = self.dec(latent_encoding)
+
+        return recon_img, recon_proto, mixed_prototypes
+
+    def forward_encoder(self, x):
+        return self.enc(x)
+
     def forward(self, x, std=None):
-        latent_encoding = self.enc(x)
+        latent_encoding = self.forward_encoder(x)
         # compute the distance of the training example to the prototype of each group
         dists = self.prototype_layer(latent_encoding.view(-1, self.dim_prototype)) # [batch, n_group, n_proto]
 
@@ -92,16 +110,6 @@ class RAE(nn.Module):
             for i in range(self.n_prototype_groups):
                 dists[i] += torch.normal(torch.zeros_like(dists[i]), std) # [batch, n_group, n_proto]
 
-        # compute the softmin weighted prototype per group
-        prototype_vectors_softmin = self.comp_weighted_prototype_per_group(dists,
-                                                                           self.prototype_layer.prototype_vectors) # [batch, n_group, dim_proto]
-
-        # combine the prototypes per group to a single prototype, i.e. a mixture over all group prototypes
-        mixed_prototypes = self.comp_combined_prototype_per_sample(prototype_vectors_softmin) # [batch, dim_proto]
-
-        # decode mixed prototypes
-        recon_proto = self.dec_prototypes(mixed_prototypes)
-
-        recon_img = self.dec(latent_encoding)
+        recon_img, recon_proto, mixed_prototypes = self.forward_decoder(latent_encoding, dists)
 
         return recon_img, recon_proto, dists, latent_encoding, self.prototype_layer.prototype_vectors, mixed_prototypes

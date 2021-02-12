@@ -1,34 +1,32 @@
 import torch
-import torchvision
-import argparse
 import numpy as np
 import time
 import matplotlib
+
 matplotlib.use('Agg')
 import sys
 import os
 from args import parse_args_as_dict
-from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from rtpt.rtpt import RTPT
 from torch.optim import lr_scheduler
 
-import utils as utils
-import losses as losses
-from model import RAE
-from autoencoder_helpers import list_of_distances
-from data import get_dataloader
+import unsup_prototype_nongroup_to_group.utils as utils
+import unsup_prototype_nongroup_to_group.losses as losses
+from unsup_prototype_nongroup_to_group.model import RAE
+from unsup_prototype_nongroup_to_group.data import get_dataloader
+
 
 def train(model, data_loader, log_samples):
     # optimizer setup
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
     # learning rate scheduler
+    scheduler = None
     if config['lr_scheduler']:
         # TODO: try LambdaLR
         num_steps = len(data_loader) * config['epochs']
         num_steps += config['lr_scheduler_warmup_steps']
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
-
 
     rtpt = RTPT(name_initials='MM', experiment_name='XIC_PrototypeDL', max_iterations=config['epochs'])
     rtpt.start()
@@ -47,7 +45,8 @@ def train(model, data_loader, log_samples):
 
             std = (config['epochs'] - e) / config['epochs']
 
-            rec_imgs, rec_protos, dists, feature_vectors_z, prototype_vectors, mixed_prototypes = model.forward(imgs, std)
+            rec_imgs, rec_protos, dists, feature_vectors_z, prototype_vectors, mixed_prototypes = model.forward(imgs,
+                                                                                                                std)
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
@@ -73,7 +72,7 @@ def train(model, data_loader, log_samples):
             if config['lambda_z'] != 0:
                 img_recon_loss = mse(rec_imgs, imgs)
 
-            loss_enc_mse = mse(mixed_prototypes, feature_vectors_z.flatten(1,3))
+            loss_enc_mse = mse(mixed_prototypes, feature_vectors_z.flatten(1, 3))
 
             loss = config['lambda_z'] * img_recon_loss + \
                    config['lambda_softmin_proto'] * softmin_proto_recon_loss + \
@@ -118,7 +117,6 @@ def train(model, data_loader, log_samples):
             print(loss_summary)
 
         if (e + 1) % config['save_step'] == 0 or e == config['epochs'] - 1 or e == 0:
-
             state = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
@@ -128,12 +126,13 @@ def train(model, data_loader, log_samples):
             torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
             # plot the indivisual prototypes of each group
-            utils.plot_prototypes(model, prototype_vectors, writer, e, config)
+            utils.plot_prototypes(model, prototype_vectors, writer, config, step=e)
 
             # plot a few samples with proto recon
-            utils.plot_examples(log_samples, model, writer, e, config)
+            utils.plot_examples(log_samples, model, writer, config, step=0)
 
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
+
 
 if __name__ == '__main__':
     # get config
@@ -159,7 +158,7 @@ if __name__ == '__main__':
     # for key in config.keys():
     #     if type(config[key]) is type(list()):
     #         list_key += [key]
-                
+
     # for key in list_key:
     #     for i, item in enumerate(config[key]):
     #         config[key+str(i)] = item
@@ -179,4 +178,3 @@ if __name__ == '__main__':
 
     # start training
     train(_model, _data_loader, x_set)
-

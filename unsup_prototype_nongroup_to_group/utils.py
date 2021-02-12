@@ -16,7 +16,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-def plot_prototypes(model, prototype_vectors, writer, e, config):
+def plot_prototypes(model, prototype_vectors, writer, config, step=0):
     # decode uncombined prototype vectors
     for group_id in range(config['n_prototype_groups']):
         prototype_imgs = model.dec_prototypes(
@@ -27,25 +27,27 @@ def plot_prototypes(model, prototype_vectors, writer, e, config):
         for p in prototype_imgs:
             plt.subplot(cnt)
             plt.imshow(p.reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
-                            # config['img_shape'][1], config['img_shape'][2]
-                            cmap='gray',
-                            interpolation='none')
+                       # config['img_shape'][1], config['img_shape'][2]
+                       cmap='gray',
+                       interpolation='none')
             plt.axis('off')
             cnt += 1
+        if writer:
+            img_save_path = os.path.join(config['img_dir'],
+                                         f'{step:05d}' + f'_group_{group_id}' + '_prototype_result' + '.png')
 
-        img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + f'_group_{group_id}'+ '_prototype_result' + '.png')
-        plt.savefig(img_save_path,
-                    transparent=True,
-                    bbox_inches='tight',
-                    pad_inches=0)
-        plt.close()
+            plt.savefig(img_save_path,
+                        transparent=True,
+                        bbox_inches='tight',
+                        pad_inches=0)
+            plt.close()
 
-        image = Image.open(img_save_path)
-        image = TF.to_tensor(image)
-        writer.add_image(f'train_proto/group{group_id}', image, global_step=e)
+            image = Image.open(img_save_path)
+            image = TF.to_tensor(image)
+            writer.add_image(f'train_proto/group{group_id}', image, global_step=step)
 
 
-def plot_examples(log_samples, model, writer, e, config):
+def plot_examples(log_samples, model, writer, config, step=0):
     # apply encoding and decoding over a small subset of the training set
     imgs = log_samples
     examples_to_show = len(log_samples)
@@ -75,16 +77,18 @@ def plot_examples(log_samples, model, writer, e, config):
                        interpolation='none')
         a[1][i].axis('off')
 
-    img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + '_decoding_result' + '.png')
-    plt.savefig(img_save_path,
-                transparent=True,
-                bbox_inches='tight',
-                pad_inches=0)
-    plt.close()
+    if writer:
+        img_save_path = os.path.join(config['img_dir'], f'{step:05d}' + '_decoding_result' + '.png')
+        plt.savefig(img_save_path,
+                    transparent=True,
+                    bbox_inches='tight',
+                    pad_inches=0)
+        plt.close()
 
-    image = Image.open(img_save_path)
-    image = TF.to_tensor(image)
-    writer.add_image(f'train_rec/decoding_result', image, global_step=e)
+        image = Image.open(img_save_path)
+        image = TF.to_tensor(image)
+        writer.add_image(f'train_rec/decoding_result', image, global_step=step)
+
 
 def makedirs(path):
     '''
