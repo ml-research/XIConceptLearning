@@ -56,6 +56,7 @@ class RAE(nn.Module):
         """
         # within every group compute the softmin over the distances and mutmul with the relevant prototype vectors
         # yielding a weighted prototype per group per training sample
+        # [batch, n_groups, dim_proto]
         proto_vecs_softmin = torch.zeros(len(dists[0]),
                                          self.n_proto_groups,
                                          self.dim_proto,

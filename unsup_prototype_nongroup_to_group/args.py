@@ -37,7 +37,7 @@ def _get_parser():
     parser.add_argument('-bs', '--batch-size', type=int, default=500, help='batch size')
     parser.add_argument('-e', '--epochs', type=int, default=500, help='batch size')
     parser.add_argument('--n-workers', type=float, default=2, help='workers to load data')
-    parser.add_argument('-pv', '--prototype-vectors', type=int ,nargs='+', default=[],
+    parser.add_argument('-pv', '--prototype-vectors', type=int ,nargs='+', default=[4, 2],
                         help='List of img shape dims [#p1, #p2, ...]')
     parser.add_argument('--filter-dim', type=int, default=32, help='filter dimensions for encoder')
     parser.add_argument('--n-z', type=int, default=10, help='latent dimensions')
