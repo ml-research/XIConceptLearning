@@ -21,6 +21,22 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+def unfold_res_dict(res_dict):
+    """
+    Takes results dict from model forward pass, unwraps all variables and returns these.
+    :param res_dict: dict from model forward pass
+    :return: all result variable
+    """
+    rec_imgs = res_dict['recon_imgs']
+    rec_protos = res_dict['recon_protos']
+    dists = res_dict['dists']
+    s_weights = res_dict['s_weights']
+    feature_vecs_z = res_dict['latent_enc']
+    proto_vecs = res_dict['proto_vecs']
+    agg_protos = res_dict['agg_protos']
+    return rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos
+
+
 def plot_prototypes(model, prototype_vectors, writer, config, step=0):
     # decode uncombined prototype vectors
     for group_id in range(config['n_prototype_groups']):
@@ -59,7 +75,7 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
 
     if rec_protos is None:
         res_dict = model.forward(imgs[:examples_to_show], std=0)
-        rec_protos = res_dict.rec_protos
+        _, rec_protos, _, _, _, _, _ = unfold_res_dict(res_dict)
 
     rec_protos = rec_protos.detach().cpu()
 
