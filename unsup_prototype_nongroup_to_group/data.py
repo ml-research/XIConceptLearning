@@ -1,3 +1,4 @@
+import os
 import torch
 import torchvision
 from torchvision import transforms
@@ -22,11 +23,11 @@ def load_data(config):
         return torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
 
     elif config['dataset'] == 'toycolor':
-        train_data = np.load('data/train_toydata.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color.npy'))
         train_data = torch.Tensor(train_data).permute(0, 3, 1, 2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-        train_labels = np.load('data/train_toydata_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
@@ -36,11 +37,11 @@ def load_data(config):
         return torch.utils.data.TensorDataset(train_data, train_labels)
 
     elif config['dataset'] == 'toycolorshape':
-        train_data = np.load('data/train_toydata_color_shape.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape.npy'))
         train_data = torch.Tensor(train_data).permute(0, 3, 1, 2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-        train_labels = np.load('data/train_toydata_color_shape_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
@@ -49,12 +50,12 @@ def load_data(config):
         return torch.utils.data.TensorDataset(train_data, train_labels)
 
     elif config['dataset'] == 'toyshapesize':
-        train_data = np.load('data/train_toydata_shape_size.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_shape_size.npy'))
         train_data = torch.Tensor(train_data).permute(0,3,1,2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
         # print(train_data)
-        train_labels = np.load('data/train_toydata_shape_size_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_shape_size_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3,28,28)
@@ -64,11 +65,11 @@ def load_data(config):
         return torch.utils.data.TensorDataset(train_data, train_labels)
 
     elif config['dataset'] == 'toycolorshapesize':
-        train_data = np.load('data/train_toydata_color_shape_size.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_size.npy'))
         train_data = torch.Tensor(train_data).permute(0,3,1,2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-        train_labels = np.load('data/train_toydata_color_shape_size_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_size_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3,28,28)
