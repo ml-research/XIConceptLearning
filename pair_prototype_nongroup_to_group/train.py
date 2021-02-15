@@ -75,7 +75,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             if config['lambda_z'] != 0:
                 img_recon_loss = mse(rec_imgs, imgs)
 
-            img_recon_loss = torch.zeros((1,)).to(config['device'])
+            loss_enc_mse = torch.zeros((1,)).to(config['device'])
             if config['lambda_enc_mse'] != 0:
                 loss_enc_mse = mse(agg_protos, feature_vecs_z.flatten(1, 3))
 
