@@ -104,15 +104,16 @@ def get_test_set(data_loader, config):
             x_set.append(x[y.index(u)])
         x_set = torch.Tensor(x_set)
         x_set = x_set.to(config['device'])
-    elif config['dataset'] in ['toycolorpairs']:
-        x = data_loader.dataset.data.tolist()
+    elif config['dataset'] in ['toycolorshapepairs']:
+
+        x = data_loader.dataset.data
         y = data_loader.dataset.labels.tolist()
         # get label of first img in pair
         y_1 = [sample[0] for sample in y]
         y_set = np.unique(y_1, axis=0).tolist()
         x_set = []
         for u in y_set:
-            x_set.append(x[y_1.index(u)])
+            x_set.append(np.moveaxis(x[y_1.index(u)][0], (0, 1, 2), (1, 2, 0)))
         x_set = torch.Tensor(x_set)
         x_set = x_set.to(config['device'])
 
