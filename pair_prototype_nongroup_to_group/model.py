@@ -196,12 +196,15 @@ class Pair_RAE(RAE):
 
         return pair_s_weights
 
+    def forward_single(self, imgs, std):
+        return super().forward(imgs, std)
+
     def forward(self, img_pair, std=None):
         (imgs1, imgs2) = img_pair
 
         # pass each individual imgs tensor through forward
-        res1_single = super().forward(imgs1, std) # returns results dict
-        res2_single = super().forward(imgs2, std) # returns results dict
+        res1_single = self.forward_single(imgs1, std) # returns results dict
+        res2_single = self.forward_single(imgs2, std) # returns results dict
 
         # combine the tensors of both forwards passes to joint result dict
         res = self.concat_res_dicts(res1_single, res2_single)

@@ -75,8 +75,12 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
     examples_to_show = len(log_samples)
 
     if rec_protos is None:
-        res_dict = model.forward(imgs[:examples_to_show], std=0)
-        _, rec_protos, _, _, _, _, _ = unfold_res_dict(res_dict)
+        if config['learn'] == 'weakly':
+            res_dict = model.forward_single(imgs[:examples_to_show], std=0)
+            rec_protos = res_dict['recon_protos']
+        elif config['learn'] == 'unsup':
+            res_dict = model.forward(imgs[:examples_to_show], std=0)
+            rec_protos = res_dict['recon_protos']
 
     rec_protos = rec_protos.detach().cpu()
 
