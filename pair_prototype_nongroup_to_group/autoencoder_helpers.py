@@ -1,7 +1,11 @@
 # python 3
 # -*- coding: utf-8 -*-
 """
-Modified Code of Oscar Li (Source: https://github.com/OscarcarLi/PrototypeDL)
+Created on Wed Jul  5 17:01:37 2017
+
+@author: Oscar Li
+
+Source: https://github.com/OscarcarLi/PrototypeDL
 """
 import os
 import torch 
@@ -45,12 +49,3 @@ def l1_norm(x1, x2):
     assert x1.shape == x2.shape
     assert len(x1.shape) == 2
     return torch.sum(torch.abs(x1 - x2), dim=1)
-
-
-def print_and_write(str, file):
-    '''
-    print str to the console and also write it to file
-    '''
-    print(str)
-    file.write(str + '\n')
-

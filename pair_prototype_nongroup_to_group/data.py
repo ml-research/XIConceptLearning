@@ -1,15 +1,16 @@
-import torchvision
 import os
-import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from PIL import Image, ImageFile
-from torch.utils.data import Dataset
+import torchvision
 from torchvision import transforms
-ImageFile.LOAD_TRUNCATED_IMAGES = True
+import numpy as np
+from torch.utils.data import Dataset
 
 
-def init_dataset(config):
+def get_dataloader(config):
+    dataset = load_data(config)
+    return torch.utils.data.DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, num_workers=config['n_workers'], pin_memory=True)
+
+def load_data(config):
     # dataloader setup
     if config['dataset'] == 'mnist':
         mnist_data = torchvision.datasets.MNIST(root='dataset', train=True, download=True,
@@ -18,52 +19,82 @@ def init_dataset(config):
                                                      transform=transforms.ToTensor())
 
         config['img_shape'] = (1, 28, 28)
-        config['n_prototype_vectors'] = [10]
+        config['prototype_vectors'] = [10]
         print('Overriding img_shape and n_prototype_vectors')
 
-        dataset = torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
+        return torch.utils.data.ConcatDataset((mnist_data, mnist_data_test))
 
     elif config['dataset'] == 'toycolor':
-        train_data = np.load('data/train_toydata.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color.npy'))
         train_data = torch.Tensor(train_data).permute(0, 3, 1, 2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-        train_labels = np.load('data/train_toydata_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
-        # config['n_prototype_vectors'] = train_labels.shape[1]
+        # config['prototype_vectors'] = train_labels.shape[1]
         print('Overriding img_shape')
 
-        dataset = torch.utils.data.TensorDataset(train_data, train_labels)
+        return torch.utils.data.TensorDataset(train_data, train_labels)
 
     elif config['dataset'] == 'toycolorshape':
-        train_data = np.load('data/train_toydata_color_shape.npy')
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape.npy'))
         train_data = torch.Tensor(train_data).permute(0, 3, 1, 2)
         train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
 
-        train_labels = np.load('data/train_toydata_color_shape_labels.npy')
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_labels.npy'))
         train_labels = torch.Tensor(train_labels)
 
         config['img_shape'] = (3, 28, 28)
         print('Overriding img_shape and n_prototype_vectors')
 
-        dataset = torch.utils.data.TensorDataset(train_data, train_labels)
+        return torch.utils.data.TensorDataset(train_data, train_labels)
 
-    elif config['dataset'] == 'toycolorpairs':
+    elif config['dataset'] == 'toyshapesize':
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_shape_size.npy'))
+        train_data = torch.Tensor(train_data).permute(0,3,1,2)
+        train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
+
+        # print(train_data)
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_shape_size_labels.npy'))
+        train_labels = torch.Tensor(train_labels)
+
+        config['img_shape'] = (3,28,28)
+        config['prototype_vectors'] = 6
+        print('Overriding img_shape and n_prototype_vectors')
+
+        return torch.utils.data.TensorDataset(train_data, train_labels)
+
+    elif config['dataset'] == 'toycolorshapesize':
+        train_data = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_size.npy'))
+        train_data = torch.Tensor(train_data).permute(0,3,1,2)
+        train_data = (train_data - train_data.min()) / (train_data.max() - train_data.min())
+
+        train_labels = np.load(os.path.join(config['data_dir'],'train_toydata_color_shape_size_labels.npy'))
+        train_labels = torch.Tensor(train_labels)
+
+        config['img_shape'] = (3,28,28)
+        config['prototype_vectors'] = train_labels.shape[1] + 3 # sizes
+        print('Overriding img_shape and n_prototype_vectors')
+
+        return torch.utils.data.TensorDataset(train_data, train_labels)
+
+    elif config['dataset'] == 'toycolorshapepairs':
         dataset = ToyDataPaired(
-            'data/', "train",
+            config['data_dir'], "train",
         )
         config['img_shape'] = (3, 28, 28)
+
+        return dataset
 
     else:
         raise ValueError('Select valid dataset please: mnist, toycolor')
 
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=config['batch_size'], shuffle=True,
-                                              num_workers=config['n_workers'], pin_memory=True)
 
+def get_test_set(data_loader, config):
     x_set = []
-    if config['dataset'] in ['toycolorshape', 'toycolor']:
+    if config['dataset'] in ['toycolorshape', 'toycolor', 'toycolorshapesize']:
         # generate set of all individual samples
         x = data_loader.dataset.tensors[0].detach().numpy().tolist()
         y = data_loader.dataset.tensors[1].detach().numpy().tolist()
@@ -85,29 +116,17 @@ def init_dataset(config):
         x_set = torch.Tensor(x_set)
         x_set = x_set.to(config['device'])
 
-    return data_loader, x_set
-
-
-def get_loader(dataset, batch_size, num_workers=8, shuffle=True):
-    return torch.utils.data.DataLoader(
-        dataset,
-        shuffle=shuffle,
-        batch_size=batch_size,
-        pin_memory=True,
-        num_workers=num_workers,
-        drop_last=True,
-    )
+    return x_set
 
 
 class ToyDataPaired(Dataset):
     def __init__(self, root, mode):
         self.root = root
-        self.mode = mode
         assert mode in ['train', 'val']
         assert os.path.exists(root), 'Path {} does not exist'.format(root)
-        
-        self.data_path = os.path.sep.join([root, f"{mode}_toydata_pairs.npy"])
-        self.labels_path = os.path.sep.join([root, f"{mode}_toydata_labels_pairs.npy"])
+
+        self.data_path = os.path.sep.join([root, f"{mode}_toydata_color_shape_pairs.npy"])
+        self.labels_path = os.path.sep.join([root, f"{mode}_toydata_color_shape_labels_pairs.npy"])
 
         self.data = np.load(self.data_path, allow_pickle=True)
         # TODO: check if normalisation is required, conflict currently with transform resize
@@ -128,10 +147,6 @@ class ToyDataPaired(Dataset):
         img2 = transform(imgs[1]).float()
 
         return (img1, img2), (labels[0], labels[1])
-        
+
     def __len__(self):
         return len(self.data)
-
-
-    
-    

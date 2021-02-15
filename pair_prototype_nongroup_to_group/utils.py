@@ -7,16 +7,6 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 
 
-def makedirs(path):
-    """
-    If path does not exist in the file system, create it
-    :param path:
-    :return:
-    """
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-
 def set_seed(seed=42):
     """
     Set random seeds for all possible random processes.
@@ -40,14 +30,15 @@ def unfold_res_dict(res_dict):
     rec_imgs = res_dict['recon_imgs']
     rec_protos = res_dict['recon_protos']
     dists = res_dict['dists']
-    feature_vectors_z = res_dict['latent_enc']
-    prototype_vectors = res_dict['proto_vecs']
-    mixed_prototypes = res_dict['agg_protos']
+    s_weights = res_dict['s_weights']
+    feature_vecs_z = res_dict['latent_enc']
+    proto_vecs = res_dict['proto_vecs']
+    agg_protos = res_dict['agg_protos']
     pair_s_weights = res_dict['pair_s_weights']
-    return rec_imgs, rec_protos, dists, feature_vectors_z, prototype_vectors, mixed_prototypes, pair_s_weights
+    return rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos, pair_s_weights
 
 
-def plot_prototypes(model, prototype_vectors, writer, e, config):
+def plot_prototypes(model, prototype_vectors, writer, config, step=0):
     # decode uncombined prototype vectors
     for group_id in range(config['n_prototype_groups']):
         prototype_imgs = model.dec_prototypes(
@@ -58,30 +49,35 @@ def plot_prototypes(model, prototype_vectors, writer, e, config):
         for p in prototype_imgs:
             plt.subplot(cnt)
             plt.imshow(p.reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
-                            # config['img_shape'][1], config['img_shape'][2]
-                            cmap='gray',
-                            interpolation='none')
+                       # config['img_shape'][1], config['img_shape'][2]
+                       cmap='gray',
+                       interpolation='none')
             plt.axis('off')
             cnt += 1
+        if writer:
+            img_save_path = os.path.join(config['img_dir'],
+                                         f'{step:05d}' + f'_group_{group_id}' + '_prototype_result' + '.png')
 
-        img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + f'_group_{group_id}'+ '_prototype_result' + '.png')
-        plt.savefig(img_save_path,
-                    transparent=True,
-                    bbox_inches='tight',
-                    pad_inches=0)
-        plt.close()
+            plt.savefig(img_save_path,
+                        transparent=True,
+                        bbox_inches='tight',
+                        pad_inches=0)
+            plt.close()
 
-        image = Image.open(img_save_path)
-        image = TF.to_tensor(image)
-        writer.add_image(f'train_proto/group{group_id}', image, global_step=e)
+            image = Image.open(img_save_path)
+            image = TF.to_tensor(image)
+            writer.add_image(f'train_proto/group{group_id}', image, global_step=step)
 
 
-def plot_examples(log_samples, model, writer, e, config):
+def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
     # apply encoding and decoding over a small subset of the training set
     imgs = log_samples
     examples_to_show = len(log_samples)
 
-    _, rec_protos, _, _, _, _ = model.forward(imgs[:examples_to_show], std=0)
+    if rec_protos is None:
+        res_dict = model.forward(imgs[:examples_to_show], std=0)
+        _, rec_protos, _, _, _, _, _ = unfold_res_dict(res_dict)
+
     rec_protos = rec_protos.detach().cpu()
 
     imgs = imgs.detach().cpu()
@@ -106,13 +102,24 @@ def plot_examples(log_samples, model, writer, e, config):
                        interpolation='none')
         a[1][i].axis('off')
 
-    img_save_path = os.path.join(config['img_dir'], f'{e:05d}' + '_decoding_result' + '.png')
-    plt.savefig(img_save_path,
-                transparent=True,
-                bbox_inches='tight',
-                pad_inches=0)
-    plt.close()
+    if writer:
+        img_save_path = os.path.join(config['img_dir'], f'{step:05d}' + '_decoding_result' + '.png')
+        plt.savefig(img_save_path,
+                    transparent=True,
+                    bbox_inches='tight',
+                    pad_inches=0)
+        plt.close()
 
-    image = Image.open(img_save_path)
-    image = TF.to_tensor(image)
-    writer.add_image(f'train_rec/decoding_result', image, global_step=e)
+        image = Image.open(img_save_path)
+        image = TF.to_tensor(image)
+        writer.add_image(f'train_rec/decoding_result', image, global_step=step)
+
+
+def makedirs(path):
+    """
+    If path does not exist in the file system, create it
+    :param path:
+    :return:
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
