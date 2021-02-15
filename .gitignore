@@ -1,5 +1,5 @@
-*/.DS_Store
-*/__pycache__/
-*/data/
-*/results*
-*/.ipynb_checkpoints
+*.DS_Store
+*__pycache__/
+*data/
+*results*
+*.ipynb_checkpoints
