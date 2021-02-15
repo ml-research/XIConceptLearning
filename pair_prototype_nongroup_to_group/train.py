@@ -143,7 +143,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
 def main(config):
 
-    # assert config['dataset'] == 'toycolorshapepairs'
+    assert config['dataset'] == 'toycolorshapepairs'
 
     # get train data
     _data_loader = data.get_dataloader(config)
