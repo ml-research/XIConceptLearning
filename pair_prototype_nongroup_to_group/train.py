@@ -6,7 +6,6 @@ import matplotlib
 matplotlib.use('Agg')
 import sys
 import os
-from args import parse_args_as_dict
 from torch.utils.tensorboard import SummaryWriter
 from rtpt.rtpt import RTPT
 from torch.optim import lr_scheduler
@@ -15,6 +14,7 @@ import pair_prototype_nongroup_to_group.utils as utils
 import pair_prototype_nongroup_to_group.losses as losses
 import pair_prototype_nongroup_to_group.data as data
 from pair_prototype_nongroup_to_group.model import Pair_RAE
+from pair_prototype_nongroup_to_group.args import parse_args_as_dict
 
 
 def train(model, data_loader, log_samples, optimizer, scheduler, writer, config):
@@ -49,6 +49,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             # be the same for both imgs
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
+                # print(f"{s_weights[0][0, :]} vs {s_weights[0][1, :]} {pair_s_weights[0, 0]}")
+                # print(f"{s_weights[1][0, :]} vs {s_weights[1][1, :]} {pair_s_weights[0, 1]}")
                 pair_loss = losses.pair_loss(pair_s_weights)
 
             # draws prototype close to training example

@@ -14,7 +14,7 @@ def _get_parser():
     parser.add_argument('--device', type=str, default='cuda', help='device to be used')
     parser.add_argument('--device-ids', type=int, nargs='+', default=[0], help='device to be used')
 
-    parser.add_argument('--learn', type=str, default='unsup', help='unsup or weakly')
+    parser.add_argument('--learn', type=str, required=True, help='unsup or weakly')
 
     parser.add_argument('--save-step', type=int, default=50, help='save model every # steps')
     parser.add_argument('--print-step', type=int, default=10, help='print metrics every # steps')
