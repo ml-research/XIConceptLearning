@@ -43,7 +43,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             res_dict = model.forward((imgs1, imgs2), std)
 
             rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, \
-            proto_vecs, agg_protos, pair_s_weights = utils.unfold_res_dict(res_dict)
+            proto_vecs, agg_protos, pair_s_weights, dists_pairs = utils.unfold_res_dict(res_dict)
 
             # enforces the same prototype to be chosen for one group between a pair of imgs, i.e. one prototype should
             # be the same for both imgs
@@ -52,7 +52,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
                 # TODO: for now pair loss just mse between the s_weights
                 # print(f"{s_weights[0][0, :]} vs {s_weights[0][1, :]} {pair_s_weights[0, 0]}")
                 # print(f"{s_weights[1][0, :]} vs {s_weights[1][1, :]} {pair_s_weights[0, 1]}")
-                pair_loss = losses.pair_loss(pair_s_weights)
+                # pair_loss = losses.pair_loss(pair_s_weights)
+                pair_loss = torch.nn.L1Loss()
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])

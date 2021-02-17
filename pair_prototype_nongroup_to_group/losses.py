@@ -43,3 +43,7 @@ def ad_loss(proto_vecs):
 
 def pair_loss(s):
 	return torch.mean(torch.abs(1 - torch.sum(torch.pow(s, 0.5), dim=1)), dim=0)
+
+
+# def pair_loss_l1():
+# 	return torch.nn.L1Loss()

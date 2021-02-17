@@ -113,6 +113,8 @@ class RAE(nn.Module):
         # compute the distance of the training example to the prototype of each group
         dists = self.proto_layer(latent_enc.view(-1, self.dim_proto)) # [batch, n_group, n_proto]
 
+        orig_dists = toch.clone(dists)
+
         if std:
             # add gaussian noise to prototypes to avoid local optima
             for i in range(self.n_proto_groups):
@@ -120,7 +122,7 @@ class RAE(nn.Module):
 
         recon_img, recon_proto, agg_proto, s_weights = self.forward_decoder(latent_enc, dists)
 
-        res_dict = self.create_res_dict(recon_img, recon_proto, dists, s_weights, latent_enc,
+        res_dict = self.create_res_dict(recon_img, recon_proto, orig_dists, s_weights, latent_enc,
                                         self.proto_layer.proto_vecs, agg_proto)
 
         return res_dict
@@ -174,6 +176,9 @@ class Pair_RAE(RAE):
             else:
                 raise ValueError('Unhandled data structure in res1_single, please send email to '
                                  'schramowski@cs.tu-darmstadt.de')
+        # store the dists seprately, not just concatenated
+        res['dists_pairs'] = [res1_single['dists'], res2_single['dists']]
+
         return res
 
     def comp_dists_sweights(self, s_weights_1, s_weights_2):

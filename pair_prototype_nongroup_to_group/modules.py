@@ -4,17 +4,18 @@ import torch.nn.functional as F
 from autoencoder_helpers import list_of_distances
 import math
 
+
 class Encoder(nn.Module):
     def __init__(self, input_dim=1, filter_dim=32, output_dim=10):
         super(Encoder, self).__init__()
-        
+
         model = []
         model += [ConvLayer(input_dim, filter_dim)]
 
         for i in range(0, 2):
             model += [ConvLayer(filter_dim, filter_dim)]
-            
-        model += [ConvLayer(filter_dim, output_dim)]
+
+        model += [ConvLayer(filter_dim, output_dim, last_layer=True)]
 
         self.model = nn.Sequential(*model)
 
@@ -24,11 +25,12 @@ class Encoder(nn.Module):
 
 
 class ConvLayer(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, last_layer=False):
         super(ConvLayer, self).__init__()
-        
+
         self.conv = nn.Conv2d(input_dim, output_dim, kernel_size=3, stride=2, padding=1)
         self.activation = nn.ReLU()
+        self.last_layer = last_layer
 
     def forward(self, x):
         # 'SAME' padding as in tensorflow
@@ -37,8 +39,9 @@ class ConvLayer(nn.Module):
         self.in_shape = x.shape[-2:]
         out = self.conv(x)
         # print(x.shape)
-        out = self.activation(out)
-        return out 
+        if not self.last_layer:
+            out = self.activation(out)
+        return out
 
 
 class Decoder(nn.Module):
