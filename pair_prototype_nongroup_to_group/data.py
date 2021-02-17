@@ -112,7 +112,7 @@ def get_test_set(data_loader, config):
             x_set.append(x[y.index(u)])
         x_set = torch.Tensor(x_set)
         x_set = x_set.to(config['device'])
-    elif config['dataset'] in ['toycolorshapepairs']:
+    elif 'pairs' in config['dataset']:
 
         x = data_loader.dataset.data
         y = data_loader.dataset.labels.tolist()

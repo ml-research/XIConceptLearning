@@ -35,7 +35,11 @@ def unfold_res_dict(res_dict):
     proto_vecs = res_dict['proto_vecs']
     agg_protos = res_dict['agg_protos']
     pair_s_weights = res_dict['pair_s_weights']
-    return rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos, pair_s_weights
+    # the individual s or min_weights of the img pairs, rather then concatenated as in s_weights
+    s_weights_pair = []
+    if res_dict['s_weights_pairs']:
+        s_weights_pair = res_dict['s_weights_pairs']
+    return rec_imgs, rec_protos, dists, s_weights, feature_vecs_z, proto_vecs, agg_protos, pair_s_weights, s_weights_pair
 
 
 def plot_prototypes(model, prototype_vectors, writer, config, step=0):

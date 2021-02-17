@@ -48,9 +48,9 @@ class RAE(nn.Module):
         self.softmin_temp = nn.Parameter(torch.ones(softmin_temp,))
         self.softmin_temp.requires_grad = False
 
-    def comp_weighted_prototype_per_group(self, dists, proto_vecs):
+    def comp_min_prototype_per_group(self, dists, proto_vecs):
         """
-        Computes the softmin over the distances within a group and weights each prototype by this weighting.
+        Computes the min over the distances within a group and weights each prototype by this weighting.
         :param dists:
         :param prototype_vectors:
         :return:
@@ -58,18 +58,18 @@ class RAE(nn.Module):
         # within every group compute the softmin over the distances and mutmul with the relevant prototype vectors
         # yielding a weighted prototype per group per training sample
         # [batch, n_groups, dim_proto]
-        proto_vecs_softmin = torch.zeros(len(dists[0]),
+        proto_vecs_min = torch.zeros(len(dists[0]),
                                          self.n_proto_groups,
                                          self.dim_proto,
                                          device=self.device)
 
         # stores the softmin weights
-        s_weights = dict()
+        min_weights = dict()
         for k in range(self.n_proto_groups):
-            s_weights[k] = self.softmin(self.softmin_temp*dists[k])
-            proto_vecs_softmin[:, k] = s_weights[k] @ proto_vecs[k]
+            min_weights[k] = torch.argmin(dists[k], dim=1)
+            proto_vecs_min[:, k] = proto_vecs[k][min_weights[k]]
 
-        return proto_vecs_softmin, s_weights
+        return proto_vecs_min, min_weights
 
     def comp_combined_prototype_per_sample(self, proto_vecs_softmin):
         """
@@ -91,11 +91,11 @@ class RAE(nn.Module):
 
     def forward_decoder(self, latent_encoding, dists):
         # compute the softmin weighted prototype per group
-        proto_vecs_softmin, s_weights = self.comp_weighted_prototype_per_group(dists,
+        proto_vecs_min, min_weights = self.comp_min_prototype_per_group(dists,
                                                                                self.proto_layer.proto_vecs)  # [batch, n_group, dim_proto]
 
         # combine the prototypes per group to a single prototype, i.e. a mixture over all group prototypes
-        agg_proto = self.comp_combined_prototype_per_sample(proto_vecs_softmin)  # [batch, dim_proto]
+        agg_proto = self.comp_combined_prototype_per_sample(proto_vecs_min)  # [batch, dim_proto]
 
         # decode mixed prototypes
         recon_proto = self.dec_prototypes(agg_proto)
@@ -103,7 +103,7 @@ class RAE(nn.Module):
         # decode latent encoding
         recon_img = self.dec(latent_encoding)
 
-        return recon_img, recon_proto, agg_proto, s_weights
+        return recon_img, recon_proto, agg_proto, min_weights
 
     def forward_encoder(self, x):
         return self.enc(x)
@@ -118,13 +118,14 @@ class RAE(nn.Module):
             for i in range(self.n_proto_groups):
                 dists[i] += torch.normal(torch.zeros_like(dists[i]), std) # [batch, n_group, n_proto]
 
-        recon_img, recon_proto, agg_proto, s_weights = self.forward_decoder(latent_enc, dists)
+        recon_img, recon_proto, agg_proto, min_weights = self.forward_decoder(latent_enc, dists)
 
-        res_dict = self.create_res_dict(recon_img, recon_proto, dists, s_weights, latent_enc,
+        res_dict = self.create_res_dict(recon_img, recon_proto, dists, min_weights, latent_enc,
                                         self.proto_layer.proto_vecs, agg_proto)
 
         return res_dict
 
+    # TODO: rename s_weights to min_weights
     def create_res_dict(self, recon_img, recon_proto, dists, s_weights, latent_enc, proto_vecs, agg_proto):
         res_dict = {'recon_imgs': recon_img,
                     'recon_protos': recon_proto,
@@ -174,6 +175,13 @@ class Pair_RAE(RAE):
             else:
                 raise ValueError('Unhandled data structure in res1_single, please send email to '
                                  'schramowski@cs.tu-darmstadt.de')
+            # store the min weights seprately, not just concatenated
+            # first convert to float
+            for k in range(self.n_proto_groups):
+                res1_single['s_weights'][k] = res1_single['s_weights'][k].float()
+                res2_single['s_weights'][k] = res2_single['s_weights'][k].float()
+            res['s_weights_pairs'] = [res1_single['s_weights'], res2_single['s_weights']]
+
         return res
 
     def comp_dists_sweights(self, s_weights_1, s_weights_2):
@@ -216,11 +224,11 @@ class Pair_RAE(RAE):
         # combine the tensors of both forwards passes to joint result dict
         res = self.concat_res_dicts(res1_single, res2_single)
 
-        # compute the distances between s weights per group between img pairs
-        pair_s_weights = self.comp_dists_sweights(res1_single['s_weights'],
-                                                  res2_single['s_weights']) # [batch, n_groups]
+        # # compute the distances between s weights per group between img pairs
+        # pair_s_weights = self.comp_dists_sweights(res1_single['s_weights'],
+        #                                           res2_single['s_weights']) # [batch, n_groups]
 
-        res['pair_s_weights'] = pair_s_weights
+        res['pair_s_weights'] = []
 
         return res
 
