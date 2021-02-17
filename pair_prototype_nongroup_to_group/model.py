@@ -113,7 +113,9 @@ class RAE(nn.Module):
         # compute the distance of the training example to the prototype of each group
         dists = self.proto_layer(latent_enc.view(-1, self.dim_proto)) # [batch, n_group, n_proto]
 
-        orig_dists = toch.clone(dists)
+        orig_dists = {}
+        for k in range(self.n_proto_groups):
+            orig_dists[k] = torch.clone(dists[k])
 
         if std:
             # add gaussian noise to prototypes to avoid local optima

@@ -23,6 +23,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
     rtpt.start()
 
     mse = torch.nn.MSELoss()
+    l1loss = torch.nn.L1Loss()
 
     for e in range(0, config['epochs']):
         max_iter = len(data_loader)
@@ -53,7 +54,10 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
                 # print(f"{s_weights[0][0, :]} vs {s_weights[0][1, :]} {pair_s_weights[0, 0]}")
                 # print(f"{s_weights[1][0, :]} vs {s_weights[1][1, :]} {pair_s_weights[0, 1]}")
                 # pair_loss = losses.pair_loss(pair_s_weights)
-                pair_loss = torch.nn.L1Loss()
+                # TODO: hard coded for now
+                pair_loss = l1loss(dists_pairs[0][0], dists_pairs[1][0]) # for the first the distances should be the same
+                pair_loss += -l1loss(dists_pairs[0][1], dists_pairs[1][1]) # for the second group the dists should be different
+                pair_loss /= 2
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
