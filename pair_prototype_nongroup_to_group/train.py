@@ -49,6 +49,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             # be the same for both imgs
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
+                # TODO: for now pair loss just mse between the s_weights
                 # print(f"{s_weights[0][0, :]} vs {s_weights[0][1, :]} {pair_s_weights[0, 0]}")
                 # print(f"{s_weights[1][0, :]} vs {s_weights[1][1, :]} {pair_s_weights[0, 1]}")
                 pair_loss = losses.pair_loss(pair_s_weights)
@@ -145,7 +146,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
 def main(config):
 
-    assert config['dataset'] == 'toycolorshapepairs'
+    assert 'pairs' in config['dataset']
 
     # get train data
     _data_loader = data.get_dataloader(config)

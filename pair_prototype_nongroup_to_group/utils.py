@@ -93,7 +93,7 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
     a[0][0].text(0, -2, s='input', fontsize=10)
     # a[1][0].text(0,-2, s='recon z', fontsize=10)
     # a[2][0].text(0,-2, s='recon min proto', fontsize=10)
-    a[1][0].text(0, -2, s='recon softmin proto', fontsize=10)
+    a[1][0].text(0, -2, s='agg proto', fontsize=10)
 
     for i in range(examples_to_show):
         a[0][i].imshow(imgs[i].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),

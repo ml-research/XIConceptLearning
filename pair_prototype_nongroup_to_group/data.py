@@ -82,7 +82,15 @@ def load_data(config):
 
     elif config['dataset'] == 'toycolorshapepairs':
         dataset = ToyDataPaired(
-            config['data_dir'], "train",
+            config['data_dir'], "train", attrs='color_shape'
+        )
+        config['img_shape'] = (3, 28, 28)
+
+        return dataset
+
+    elif config['dataset'] == 'toyshapepairs':
+        dataset = ToyDataPaired(
+            config['data_dir'], "train", attrs='shape'
         )
         config['img_shape'] = (3, 28, 28)
 
@@ -121,13 +129,13 @@ def get_test_set(data_loader, config):
 
 
 class ToyDataPaired(Dataset):
-    def __init__(self, root, mode):
+    def __init__(self, root, mode, attrs):
         self.root = root
         assert mode in ['train', 'val']
         assert os.path.exists(root), 'Path {} does not exist'.format(root)
 
-        self.data_path = os.path.sep.join([root, f"{mode}_toydata_color_shape_pairs.npy"])
-        self.labels_path = os.path.sep.join([root, f"{mode}_toydata_color_shape_labels_pairs.npy"])
+        self.data_path = os.path.sep.join([root, f"{mode}_toydata_{attrs}_pairs.npy"])
+        self.labels_path = os.path.sep.join([root, f"{mode}_toydata_{attrs}_labels_pairs.npy"])
 
         self.data = np.load(self.data_path, allow_pickle=True)
         # TODO: check if normalisation is required, conflict currently with transform resize

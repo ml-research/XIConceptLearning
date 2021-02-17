@@ -149,6 +149,8 @@ class Pair_RAE(RAE):
         self.softmin_temp_pairs = nn.Parameter(torch.ones(softmin_temp,))
         self.softmin_temp_pairs.requires_grad = False
 
+        self.mse = torch.nn.MSELoss()
+
     def concat_res_dicts(self, res1_single, res2_single):
         """
         Combines the results of the forward passes of each imgs group into a single result dict.
@@ -205,6 +207,11 @@ class Pair_RAE(RAE):
         # pass each individual imgs tensor through forward
         res1_single = self.forward_single(imgs1, std) # returns results dict
         res2_single = self.forward_single(imgs2, std) # returns results dict
+
+        # TODO: enforce the s_weights to be the same for the first group
+        # pair_loss = self.mse(res1_single['s_weights'][0], res2_single['s_weights'][0])
+        # TODO: just for testing, the prototype weights of one group is set to be the same between imag pairs
+        # res2_single['s_weights'][0] = res1_single['s_weights'][0]
 
         # combine the tensors of both forwards passes to joint result dict
         res = self.concat_res_dicts(res1_single, res2_single)
