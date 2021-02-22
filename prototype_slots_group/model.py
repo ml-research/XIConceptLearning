@@ -1,0 +1,268 @@
+import torch
+import torch.nn as nn
+import modules as modules
+import autoencoder_helpers as ae_helpers
+
+class RAE(nn.Module):
+    def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32,
+                 n_proto_vecs=(10,),
+                 train_pw=False, softmin_temp=1, agg_type='sum',
+                 device="cpu"):
+        super(RAE, self).__init__()
+
+        self.input_dim = input_dim
+        self.n_z = n_z
+        self.filter_dim = filter_dim
+        self.n_proto_vecs = n_proto_vecs
+        self.n_proto_groups = len(n_proto_vecs)
+        self.device = device
+
+        # encoder
+        self.enc = modules.Encoder(input_dim=input_dim[1], filter_dim=filter_dim, output_dim=n_z)
+
+        # forward encoder to determine input dim for prototype layer
+        self.enc_out = self.enc.forward(torch.randn(input_dim))
+        self.latent_shape = list(self.enc_out.shape[1:])
+        self.latent_dim_flat = self.enc_out.view(-1,1).shape[0]
+        self.part_proto_dim = int(self.latent_dim_flat/self.n_proto_groups)
+
+        # prototype layer
+        self.proto_layer = modules.PrototypeLayer(input_dim=self.part_proto_dim,
+                                                  n_proto_vecs=self.n_proto_vecs,
+                                                  device=self.device)
+
+        self.proto_agg_layer = modules.ProtoAggregateLayer(proto_dim=self.latent_dim_flat,
+                                                           train_pw=train_pw,
+                                                           layer_type=agg_type)
+
+        # decoder
+        # use forwarded encoder to determine output shapes for decoder
+        dec_out_shapes = []
+        for module in self.enc.modules():
+            if isinstance(module, modules.ConvLayer):
+                dec_out_shapes += [list(module.in_shape)]
+        self.dec = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
+                                   output_dim=input_dim[1], out_shapes=dec_out_shapes)
+        self.dec_proto = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
+                                   output_dim=input_dim[1], out_shapes=dec_out_shapes)
+
+        self.softmin = torch.nn.Softmin(dim=1)
+        # self.softmin_temp = nn.Parameter(torch.ones(softmin_temp,))
+        # self.softmin_temp.requires_grad = False
+        self.softmin_temp = softmin_temp
+
+        self.parts_encoder = modules.PartsEncoder(self.n_proto_groups, self.latent_dim_flat,
+                                                  self.part_proto_dim)
+
+    def comp_weighted_prototype_per_group(self, dists, proto_vecs):
+        """
+        Computes the softmin over the distances within a group and weights each prototype by this weighting.
+        :param dists:
+        :param prototype_vectors:
+        :return:
+        """
+        # within every group compute the softmin over the distances and mutmul with the relevant prototype vectors
+        # yielding a weighted prototype per group per training sample
+        # [batch, n_groups, latent_dim_flat]
+        proto_vecs_softmin = torch.zeros(len(dists[0]),
+                                         self.n_proto_groups,
+                                         self.part_proto_dim,
+                                         device=self.device)
+
+        # stores the softmin weights
+        s_weights = dict()
+        for k in range(self.n_proto_groups):
+            s_weights[k] = self.softmin(self.softmin_temp*dists[k])
+            proto_vecs_softmin[:, k] = s_weights[k] @ proto_vecs[k]
+
+        return proto_vecs_softmin, s_weights
+
+    def comp_combined_prototype_per_sample(self, proto_vecs_softmin):
+        """
+        Given the softmin weighted prototypes per group, compute the mixture of these prototypes to combine to one
+        prototype.
+        :param prototype_vectors_softmin:
+        :return:
+        """
+        out = self.proto_agg_layer(proto_vecs_softmin)
+        return out
+
+    def dec_wrapper(self, enc, Proto=False):
+        """
+        Wrapper helper for decoding, helpful due to reshaping.
+        :param enc:
+               Proto:
+        :return:
+        """
+        if Proto:
+            return self.dec_proto(enc.reshape([enc.shape[0]] + self.latent_shape))
+        else:
+            return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
+
+    def forward_decoder(self, latent_encoding, dists):
+        # compute the softmin weighted prototype per group
+        proto_vecs_softmin, s_weights = self.comp_weighted_prototype_per_group(dists,
+                                                                               self.proto_layer.proto_vecs)  # [batch, n_group, part_proto_dim]
+        # stack the part prototypes
+        # [batch, flat_enc_dim]
+        stacked_proto_vecs_softmin = torch.cat([proto_vecs_softmin[:, k] for k in range(self.n_proto_groups)], dim=1)
+
+        # combine the prototypes per group to a single prototype, i.e. a mixture over all group prototypes
+        agg_proto = self.comp_combined_prototype_per_sample(stacked_proto_vecs_softmin)  # [batch, latent_dim_flat]
+
+        # decode mixed prototypes
+        recon_proto = self.dec_wrapper(agg_proto, Proto=True)
+
+        # decode latent encoding
+        recon_img = self.dec_wrapper(latent_encoding, Proto=False)
+
+        return recon_img, recon_proto, agg_proto, s_weights
+
+    def forward_encoder(self, x):
+        return self.enc(x)
+
+    def forward(self, x, std=None):
+        latent_enc = self.forward_encoder(x)
+
+        # divide the encoding into parts
+        latent_enc, parts_enc = self.parts_encoder(latent_enc.view(-1, self.latent_dim_flat))
+
+        # compute the distance of the part encodings to the prototypes of each group
+        dists = self.proto_layer(parts_enc) # [batch, n_group, n_proto]
+
+        orig_dists = {}
+        for k in range(self.n_proto_groups):
+            orig_dists[k] = torch.clone(dists[k])
+
+        if std:
+            # add gaussian noise to prototypes to avoid local optima
+            for i in range(self.n_proto_groups):
+                dists[i] += torch.normal(torch.zeros_like(dists[i]), std) # [batch, n_group, n_proto]
+
+        recon_img, recon_proto, agg_proto, s_weights = self.forward_decoder(latent_enc, dists)
+
+        res_dict = self.create_res_dict(recon_img, recon_proto, orig_dists, s_weights, latent_enc, parts_enc,
+                                        self.proto_layer.proto_vecs, agg_proto)
+
+        return res_dict
+
+    def create_res_dict(self, recon_img, recon_proto, dists, s_weights, parts_enc, latent_enc, proto_vecs, agg_proto):
+        res_dict = {'recon_imgs': recon_img,
+                    'recon_protos': recon_proto,
+                    'dists': dists,
+                    's_weights': s_weights,
+                    'parts_enc': parts_enc,
+                    'latent_enc': latent_enc,
+                    'proto_vecs': proto_vecs,
+                    'agg_protos': agg_proto}
+        return res_dict
+
+
+class Pair_RAE(RAE):
+    def __init__(self, input_dim=(1, 1, 28,28), n_z=10, filter_dim=32,
+                 n_proto_vecs=(10,),
+                 train_pw=False, softmin_temp=1, agg_type='sum',
+                 device="cpu"):
+        super(Pair_RAE, self).__init__(input_dim=input_dim, n_z=n_z, filter_dim=filter_dim,
+                                  n_proto_vecs=n_proto_vecs,
+                                  train_pw=train_pw, softmin_temp=softmin_temp, agg_type=agg_type,
+                                  device=device)
+
+        self.softmin_temp_pairs = nn.Parameter(torch.ones(softmin_temp,))
+        self.softmin_temp_pairs.requires_grad = False
+
+        self.mse = torch.nn.MSELoss()
+
+    def concat_res_dicts(self, res1_single, res2_single):
+        """
+        Combines the results of the forward passes of each imgs group into a single result dict.
+        :param res1_single: forward pass results dict for imgs1
+        :param res2_single: forward pass results dict for imgs2
+        :return:
+        """
+        assert res1_single.keys() == res2_single.keys()
+
+        res = {}
+        for key in res1_single.keys():
+            if key == 'proto_vecs':
+                res[key] = self.proto_layer.proto_vecs
+            elif isinstance(res1_single[key], dict):
+                d = dict()
+                for k in range(self.n_proto_groups):
+                    d[k] = torch.cat((res1_single[key][k], res2_single[key][k]), dim=0)
+                res[key] = d
+            elif torch.is_tensor(res1_single[key]):
+                res[key] = torch.cat((res1_single[key], res2_single[key]), dim=0)
+            else:
+                raise ValueError('Unhandled data structure in res1_single, please send email to '
+                                 'schramowski@cs.tu-darmstadt.de')
+        # store the dists seprately, not just concatenated
+        res['dists_pairs'] = [res1_single['dists'], res2_single['dists']]
+
+        return res
+
+    def comp_dists_sweights(self, s_weights_1, s_weights_2):
+        """
+
+        :param s_weights_1: dict length of n_groups for imgs1, each entry has dims [batch, n_protos_in_group],
+                            e.g. [64, 4]
+        :param s_weights_2: dict length of n_groups for imgs2, each entry has dims [batch, n_protos_in_group],
+                            e.g. [64, 4]
+        :return:
+        """
+        # for every group compute the distances between paired s_weights, using l1 norm
+        s_weights_dists = torch.empty(s_weights_1[0].shape[0], self.n_proto_groups, device=self.device) # [batch, n_groups]
+        for k in range(self.n_proto_groups):
+            # compute the l1 norm between the s weight vectors of each img pair
+            s_weights_dists[:, k] = ae_helpers.l1_norm(s_weights_1[k], s_weights_2[k])
+
+        # TODO: allow to specify if one attribute is the same of one attribute is different, step2: allow for varying k
+        #  step3: profit (please msg schramowski@cs.tu-darmstadt.de for details on this)
+        # now perform softmin over the dists between the paired s_weights
+        pair_s_weights = self.softmin(self.softmin_temp_pairs * s_weights_dists)
+
+        return pair_s_weights
+
+    def forward_single(self, imgs, std):
+        return super().forward(imgs, std)
+
+    def forward(self, img_pair, std=None):
+        (imgs1, imgs2) = img_pair
+
+        # pass each individual imgs tensor through forward
+        res1_single = self.forward_single(imgs1, std) # returns results dict
+        res2_single = self.forward_single(imgs2, std) # returns results dict
+
+        # TODO: enforce the s_weights to be the same for the first group
+        # pair_loss = self.mse(res1_single['s_weights'][0], res2_single['s_weights'][0])
+        # TODO: just for testing, the prototype weights of one group is set to be the same between imag pairs
+        # res2_single['s_weights'][0] = res1_single['s_weights'][0]
+
+        # combine the tensors of both forwards passes to joint result dict
+        res = self.concat_res_dicts(res1_single, res2_single)
+
+        # compute the distances between s weights per group between img pairs
+        pair_s_weights = self.comp_dists_sweights(res1_single['s_weights'],
+                                                  res2_single['s_weights']) # [batch, n_groups]
+
+        res['pair_s_weights'] = pair_s_weights
+
+        return res
+
+
+if __name__ == "__main__":
+    from torchsummary import summary
+    net = RAE(input_dim=(1, 3, 28, 28),
+                 n_z=10, filter_dim=32,
+                 n_proto_vecs=[4, 2],
+                 train_pw=False,
+                 softmin_temp=0.1,
+                 device='cpu',
+                 agg_type='linear')
+
+    # summary(net, (3, 28, 28))
+    x = torch.rand(15, 3, 28, 28)
+    out = net(x, std=0.1)
+    print(out[0].shape)
+    # net = SetTransformer(dim_input=32, dim_output=480)
+    # summary(net, (1, 32))
