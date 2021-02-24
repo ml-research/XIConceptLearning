@@ -34,7 +34,8 @@ class RAE(nn.Module):
         self.proto_agg_layer = modules.ProtoAggregateLayer(n_protos=self.n_proto_groups,
                                                            dim_protos=self.dim_proto,
                                                            train_pw=train_pw,
-                                                           layer_type=agg_type)
+                                                           layer_type=agg_type,
+                                                           device=self.device)
 
         # decoder
         # use forwarded encoder to determine output shapes for decoder
@@ -44,35 +45,13 @@ class RAE(nn.Module):
                 dec_out_shapes += [list(module.in_shape)]
         self.dec = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
-        # self.dec_proto = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
-        #                            output_dim=input_dim[1], out_shapes=dec_out_shapes)
+        self.dec_proto = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
+                                   output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
         self.attr_predictors = modules.AttributePredictors(in_dim=self.latent_dim_flat,
                                                            n_proto_vecs=self.n_proto_vecs,
-                                                           temp=softmax_temp)
-
-    def comp_weighted_prototype_per_group(self, dists, proto_vecs):
-        """
-        Computes the softmin over the distances within a group and weights each prototype by this weighting.
-        :param dists:
-        :param prototype_vectors:
-        :return:
-        """
-        # within every group compute the softmin over the distances and mutmul with the relevant prototype vectors
-        # yielding a weighted prototype per group per training sample
-        # [batch, n_groups, latent_dim_flat]
-        proto_vecs_softmin = torch.zeros(len(dists[0]),
-                                         self.n_proto_groups,
-                                         self.part_proto_dim,
-                                         device=self.device)
-
-        # stores the softmin weights
-        s_weights = dict()
-        for k in range(self.n_proto_groups):
-            s_weights[k] = self.softmin(self.softmin_temp*dists[k])
-            proto_vecs_softmin[:, k] = s_weights[k] @ proto_vecs[k]
-
-        return proto_vecs_softmin, s_weights
+                                                           temp=softmax_temp,
+                                                           device=self.device)
 
     def comp_combined_prototype_per_sample(self, attr_ids):
         """
@@ -86,38 +65,38 @@ class RAE(nn.Module):
         assert isinstance(attr_ids, dict)
 
         # extract those attribute slots that were predicted into a tensor
-        pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto)) # [batch, n_groups, dim_proto]
+        pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
         for k in range(self.n_proto_groups):
             pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k], :]
 
         out = self.proto_agg_layer(pred_proto_vecs)
         return out
 
-    # def dec_wrapper(self, enc, Proto=False):
-    #     """
-    #     Wrapper helper for decoding, helpful due to reshaping.
-    #     :param enc:
-    #            Proto:
-    #     :return:
-    #     """
-    #     if Proto:
-    #         return self.dec_proto(enc.reshape([enc.shape[0]] + self.latent_shape))
-    #     else:
-    #         return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
-    def dec_wrapper(self, enc):
+    def dec_wrapper(self, enc, Proto=False):
         """
         Wrapper helper for decoding, helpful due to reshaping.
         :param enc:
+               Proto:
         :return:
         """
-        return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
+        if Proto:
+            return self.dec_proto(enc.reshape([enc.shape[0]] + self.latent_shape))
+        else:
+            return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
+    # def dec_wrapper(self, enc):
+    #     """
+    #     Wrapper helper for decoding, helpful due to reshaping.
+    #     :param enc:
+    #     :return:
+    #     """
+    #     return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
 
     def forward_decoder(self, latent_enc, agg_proto):
         # decode mixed prototypes
-        recon_proto = self.dec_wrapper(agg_proto)
+        recon_proto = self.dec_wrapper(agg_proto, Proto=True)
 
         # decode latent encoding
-        recon_img = self.dec_wrapper(latent_enc)
+        recon_img = self.dec_wrapper(latent_enc, Proto=False)
 
         return recon_img, recon_proto
 

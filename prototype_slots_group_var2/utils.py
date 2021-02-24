@@ -87,24 +87,27 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
 
     if rec_protos is None:
         if config['learn'] == 'weakly':
-            res_dict = model.forward_single(imgs[:examples_to_show], std=0)
+            res_dict = model.forward_single(imgs[:examples_to_show])
+            rec_z = res_dict['recon_imgs']
             rec_protos = res_dict['recon_protos']
         elif config['learn'] == 'unsup':
-            res_dict = model.forward(imgs[:examples_to_show], std=0)
+            res_dict = model.forward(imgs[:examples_to_show])
+            rec_z = res_dict['recon_imgs']
             rec_protos = res_dict['recon_protos']
 
+    rec_z = rec_z.detach().cpu()
     rec_protos = rec_protos.detach().cpu()
 
     imgs = imgs.detach().cpu()
 
     # compare original images to their reconstructions
-    n_rows = 2
+    n_rows = 3
     f, a = plt.subplots(n_rows, examples_to_show, figsize=(examples_to_show, n_rows))
 
     a[0][0].text(0, -2, s='input', fontsize=10)
-    # a[1][0].text(0,-2, s='recon z', fontsize=10)
+    a[1][0].text(0,-2, s='recon z', fontsize=10)
     # a[2][0].text(0,-2, s='recon min proto', fontsize=10)
-    a[1][0].text(0, -2, s='agg proto', fontsize=10)
+    a[2][0].text(0, -2, s='agg proto', fontsize=10)
 
     for i in range(examples_to_show):
         a[0][i].imshow(imgs[i].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
@@ -112,10 +115,15 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
                        interpolation='none')
         a[0][i].axis('off')
 
-        a[1][i].imshow(rec_protos[i].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
+        a[1][i].imshow(rec_z[i].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
                        cmap='gray',
                        interpolation='none')
         a[1][i].axis('off')
+
+        a[2][i].imshow(rec_protos[i].reshape(config['img_shape']).permute(1, 2, 0).squeeze(),
+                       cmap='gray',
+                       interpolation='none')
+        a[2][i].axis('off')
 
     if writer:
         img_save_path = os.path.join(config['img_dir'], f'{step:05d}' + '_decoding_result' + '.png')

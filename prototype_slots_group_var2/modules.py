@@ -127,6 +127,8 @@ class ProtoAggregateLayer(nn.Module):
         else:
             raise ValueError('Aggregation layer type not supported. Please email wolfgang.stammer@cs.tu-darmstadt.de')
 
+        self.net.to(self.device)
+
     def forward(self, x):
         return self.net(x)
 
@@ -251,7 +253,7 @@ class DenseLayerSoftmax(nn.Module):
 
 
 class AttributePredictors(nn.Module):
-    def __init__(self, in_dim=40, n_proto_vecs=(4,), temp=0.01):
+    def __init__(self, in_dim=40, n_proto_vecs=(4,), temp=0.01, device='cpu'):
         super(AttributePredictors, self).__init__()
         self.in_dim = in_dim
         self.n_proto_vecs = n_proto_vecs
@@ -260,7 +262,8 @@ class AttributePredictors(nn.Module):
 
         self.predictors = dict()
         for k in range(self.n_proto_groups):
-            self.predictors[k] = _AttributePredictor(in_dim=self.in_dim, out_dim=self.n_proto_vecs[k], temp=self.temp)
+            self.predictors[k] = _AttributePredictor(in_dim=self.in_dim, out_dim=self.n_proto_vecs[k],
+                                                     temp=self.temp, device=device)
 
     def forward(self, x):
         # flatten image input
@@ -273,7 +276,7 @@ class AttributePredictors(nn.Module):
 
 
 class _AttributePredictor(nn.Module):
-    def __init__(self, in_dim=40, out_dim=4, temp=0.01):
+    def __init__(self, in_dim=40, out_dim=4, temp=0.01, device='cpu'):
         super(_AttributePredictor, self).__init__()
         self.temp = temp
         self.enc = nn.Sequential(
@@ -288,6 +291,7 @@ class _AttributePredictor(nn.Module):
             nn.Linear(int(in_dim/3), out_dim),
             # nn.Softmax(dim=1)
         )
+        self.to(device)
 
     def forward(self, x):
         # flatten image input
