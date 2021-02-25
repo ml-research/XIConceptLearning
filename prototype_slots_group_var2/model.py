@@ -69,9 +69,7 @@ class RAE(nn.Module):
         # extract those attribute slots that were predicted into a tensor
         pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
         for k in range(self.n_proto_groups):
-            # choose that prototype in every group that was predicted, make sure the gradient of the id prediction
-            # is detached
-            pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k].detach(), :]
+            pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k], :]
 
         out = self.proto_agg_layer(pred_proto_vecs)
         return out
@@ -115,7 +113,7 @@ class RAE(nn.Module):
         # predict from encoding which attribute is present
         attr_prob = self.attr_predictors(latent_enc) # dict [n_groups, batch]
 
-        # apply argmax over predicitons
+        # apply argmax over predicitons, this also enforces that the attr-ids do not contain any gradient information
         attr_ids = dict()
         for k in range(self.n_proto_groups):
             attr_ids[k] = torch.argmax(attr_prob[k], dim=1)
