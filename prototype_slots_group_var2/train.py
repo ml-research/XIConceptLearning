@@ -188,7 +188,8 @@ def main(config):
     # TODO: remove this if encoder is to be trained end 2 end with all other subtasks, here we load a
     #  image reconstruction pre-trained network
     pretrained_state_dict = torch.load(os.path.join('prototype_slots_group_var2/pretrained_state/img_recon/states',
-                                                    '%05d.pth' % (1999)))
+                                                    '%05d.pth' % (1999)),
+                                       map_location=config['device'])
     _model.load_state_dict(pretrained_state_dict)
 
     # TODO: Here we specify that the encoder should not be updated any further
