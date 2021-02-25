@@ -134,7 +134,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
         if (e + 1) % config['save_step'] == 0 or e == config['epochs'] - 1 or e == 0:
             state = {
-                'model': model.detach().cpu().state_dict(),
+                'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'ep': e,
                 'config': config

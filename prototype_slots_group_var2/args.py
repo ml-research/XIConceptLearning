@@ -37,7 +37,9 @@ def _get_parser():
     parser.add_argument('--lr-scheduler', action='store_true', help='use learning rate scheduler')
     parser.add_argument('--lr-scheduler-warmup-steps', type=int, default=100,
                         help='learning rate scheduler warmup steps')
-    parser.add_argument('-bs', '--batch-size', type=int, default=500, help='batch size')
+    parser.add_argument('-bs', '--batch-size', type=int, default=500, help='batch size, for paired training this is '
+                                                                           'the batch size of pairs, so in the end you '
+                                                                           'have 2xbs')
     parser.add_argument('-e', '--epochs', type=int, default=500, help='batch size')
     parser.add_argument('--n-workers', type=float, default=2, help='workers to load data')
     parser.add_argument('-pv', '--prototype-vectors', type=int ,nargs='+', default=[4, 2],
