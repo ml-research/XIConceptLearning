@@ -21,9 +21,9 @@ def _get_parser():
     parser.add_argument('--display-step', type=int, default=1,
                         help='track metrics and iamges on tensorboard every # steps')
 
-    parser.add_argument('--lambda-z', type=float, default=0., help='lambda for z recon loss')
-    parser.add_argument('--lambda-softmin-proto', type=float, default=1.,
-                        help='lambda for softmin prototype recon loss')
+    parser.add_argument('--lambda-recon-z', type=float, default=0., help='lambda for z recon loss')
+    parser.add_argument('--lambda-recon-proto', type=float, default=1.,
+                        help='lambda for agg prototype recon loss')
     parser.add_argument('--lambda-r1', type=float, default=0., help='lambda for R1 loss')
     parser.add_argument('--lambda-r2', type=float, default=0., help='lambda for R2 loss')
     parser.add_argument('--lambda-enc-mse', type=float, default=0., help='lambda for encoder MSE loss')
@@ -61,6 +61,7 @@ def _get_parser():
                         help="'toycolor' or 'mnist' or 'toycolorshape' or 'toyshapesize' or 'toycolorshapesize'")
     parser.add_argument('--initials', type=str, required=True,
                         help="Your initials")
+    parser.add_argument('--fpath-load-pretrained', type=str, default=None, help='specify the fpath to the pretrained model')
 
     return parser
 

@@ -29,11 +29,19 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
         max_iter = len(data_loader)
         start = time.time()
         loss_dict = dict(
-            {'img_recon_loss': 0, 'softmin_proto_recon_loss': 0, 'r1_loss': 0, 'r2_loss': 0,
+            {'z_recon_loss': 0, 'proto_recon_loss': 0, 'r1_loss': 0, 'r2_loss': 0,
              'r5_loss': 0, 'pair_loss': 0, 'loss': 0, 'enc_mse_loss': 0, 'ad_loss': 0})
 
         for i, batch in enumerate(data_loader):
             imgs1, imgs2 = batch[0]
+
+            # sanity check pairs
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, 2)
+            # ax[0].imshow(imgs1[10].detach().cpu().reshape(config['img_shape']).permute(1, 2, 0).squeeze())
+            # ax[1].imshow(imgs2[10].detach().cpu().reshape(config['img_shape']).permute(1, 2, 0).squeeze())
+            # plt.savefig('tmp.png')
+
             imgs1 = imgs1.to(config['device'])
             imgs2 = imgs2.to(config['device'])
             imgs = torch.cat((imgs1, imgs2), dim=0)
@@ -49,15 +57,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             # be the same for both imgs
             # TODO: reimplement
             pair_loss = torch.zeros((1,)).to(config['device'])
-            # if config['lambda_pair'] != 0:
-            #     # TODO: for now pair loss just mse between the s_weights
-            #     # print(f"{s_weights[0][0, :]} vs {s_weights[0][1, :]} {pair_s_weights[0, 0]}")
-            #     # print(f"{s_weights[1][0, :]} vs {s_weights[1][1, :]} {pair_s_weights[0, 1]}")
-            #     # pair_loss = losses.pair_loss(pair_s_weights)
-            #     # TODO: hard coded for now
-            #     pair_loss = l1loss(dists_pairs[0][0], dists_pairs[1][0]) # for the first the distances should be the same
-            #     pair_loss += -l1loss(dists_pairs[0][1], dists_pairs[1][1]) # for the second group the dists should be different
-            #     pair_loss /= 2
+            if config['lambda_pair'] != 0:
+                pair_loss = losses.pair_cos_loss(attr_probs)
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
@@ -75,20 +76,20 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             #     loss_ad += torch.mean(torch.sqrt(torch.sum(proto_vecs[k].T ** 2, dim=1)), dim=0)
                 loss_ad = losses.ad_loss(proto_vecs)
 
-            softmin_proto_recon_loss = torch.zeros((1,)).to(config['device'])
-            if config['lambda_softmin_proto'] != 0:
-                softmin_proto_recon_loss = mse(rec_protos, imgs)
+            proto_recon_loss = torch.zeros((1,)).to(config['device'])
+            if config['lambda_recon_proto'] != 0:
+                proto_recon_loss = mse(rec_protos, imgs)
 
-            img_recon_loss = torch.zeros((1,)).to(config['device'])
-            if config['lambda_z'] != 0:
-                img_recon_loss = mse(rec_imgs, imgs)
+            z_recon_loss = torch.zeros((1,)).to(config['device'])
+            if config['lambda_recon_z'] != 0:
+                z_recon_loss = mse(rec_imgs, imgs)
 
             loss_enc_mse = torch.zeros((1,)).to(config['device'])
             if config['lambda_enc_mse'] != 0:
                 loss_enc_mse = mse(agg_protos, feature_vecs_z.flatten(1, 3))
 
-            loss = config['lambda_z'] * img_recon_loss + \
-                   config['lambda_softmin_proto'] * softmin_proto_recon_loss + \
+            loss = config['lambda_recon_z'] * z_recon_loss + \
+                   config['lambda_recon_proto'] * proto_recon_loss + \
                    config['lambda_r1'] * r1_loss + \
                    config['lambda_r2'] * r2_loss + \
                    config['lambda_enc_mse'] * loss_enc_mse + \
@@ -102,8 +103,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             if config['lr_scheduler'] and e > config['lr_scheduler_warmup_steps']:
                 scheduler.step()
 
-            loss_dict['img_recon_loss'] += img_recon_loss.item()
-            loss_dict['softmin_proto_recon_loss'] += softmin_proto_recon_loss.item()
+            loss_dict['z_recon_loss'] += z_recon_loss.item()
+            loss_dict['proto_recon_loss'] += proto_recon_loss.item()
 
             loss_dict['r1_loss'] += r1_loss.item()
             loss_dict['r2_loss'] += r2_loss.item()
@@ -187,12 +188,12 @@ def main(config):
 
     # TODO: remove this if encoder is to be trained end 2 end with all other subtasks, here we load a
     #  image reconstruction pre-trained network
-    pretrained_state_dict = torch.load(os.path.join('prototype_slots_group_var2/pretrained_state/img_recon/states',
-                                                    '%05d.pth' % (1999)),
-                                       map_location=config['device'])
-    _model.load_state_dict(pretrained_state_dict)
+    if config['fpath_load_pretrained']:
+        pretrained_state_dict = torch.load(config['fpath_load_pretrained'], map_location=config['device'])
+        _model.load_state_dict(pretrained_state_dict['model'])
 
-    # TODO: Here we specify that the encoder should not be updated any further
+        # TODO: Here we specify that the encoder should not be updated any further
+        utils.freeze_enc(_model)
 
     # optimizer setup
     optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])

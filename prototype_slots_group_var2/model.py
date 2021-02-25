@@ -45,6 +45,8 @@ class RAE(nn.Module):
                 dec_out_shapes += [list(module.in_shape)]
         self.dec = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
+        # TODO: same decoder for prototypes and encoding?
+        # self.dec_proto = self.dec
         self.dec_proto = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
@@ -67,6 +69,8 @@ class RAE(nn.Module):
         # extract those attribute slots that were predicted into a tensor
         pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
         for k in range(self.n_proto_groups):
+            # choose that prototype in every group that was predicted, make sure the gradient of the id prediction
+            # is detached
             pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k].detach(), :]
 
         out = self.proto_agg_layer(pred_proto_vecs)

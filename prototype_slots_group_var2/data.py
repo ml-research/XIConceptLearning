@@ -88,9 +88,9 @@ def load_data(config):
 
         return dataset
 
-    elif config['dataset'] == 'toyshapepairs':
+    elif config['dataset'] == 'toysamecolordifshapepairs':
         dataset = ToyDataPaired(
-            config['data_dir'], "train", attrs='shape'
+            config['data_dir'], "train", attrs='samecolor_difshape'
         )
         config['img_shape'] = (3, 28, 28)
 

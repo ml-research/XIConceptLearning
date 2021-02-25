@@ -22,6 +22,12 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+def freeze_enc(model):
+    for name, p in model.named_parameters():
+        if "enc" in name:
+            p.requires_grad = False
+
+
 def unfold_res_dict(res_dict):
     """
     Takes results dict from model forward pass, unwraps all variables and returns these.
