@@ -1,0 +1,41 @@
+{
+  "device": "cuda:0",
+  "device_ids": [
+    0
+  ],
+  "learn": "weakly",
+  "save_step": 50,
+  "print_step": 10,
+  "display_step": 1,
+  "lambda_z": 1.0,
+  "lambda_softmin_proto": 0.0,
+  "lambda_r1": 0.0,
+  "lambda_r2": 0.0,
+  "lambda_enc_mse": 0.0,
+  "lambda_ad": 0.0,
+  "lambda_pair": 0.0,
+  "train_weighted_protos": false,
+  "learning_rate": 0.0001,
+  "lr_scheduler": false,
+  "lr_scheduler_warmup_steps": 100,
+  "batch_size": 512,
+  "epochs": 2000,
+  "n_workers": 2,
+  "prototype_vectors": [
+    4,
+    2
+  ],
+  "filter_dim": 32,
+  "n_z": 10,
+  "agg_type": "sum",
+  "softmax_temp": 0.01,
+  "exp_name": "img_recon",
+  "results_dir": "results_group/img_recon",
+  "model_dir": "results_group/img_recon/states",
+  "img_dir": "results_group/img_recon/imgs",
+  "data_dir": "Data",
+  "seed": 13,
+  "dataset": "toycolorshapepairs",
+  "initials": "WS",
+  "n_prototype_groups": 2
+}

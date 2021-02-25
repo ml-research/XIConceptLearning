@@ -133,7 +133,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
         if (e + 1) % config['save_step'] == 0 or e == config['epochs'] - 1 or e == 0:
             state = {
-                'model': model.state_dict(),
+                'model': model.detach().cpu().state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'ep': e,
                 'config': config
@@ -184,6 +184,14 @@ def main(config):
                       agg_type=config['agg_type'])
 
     _model = _model.to(config['device'])
+
+    # TODO: remove this if encoder is to be trained end 2 end with all other subtasks, here we load a
+    #  image reconstruction pre-trained network
+    pretrained_state_dict = torch.load(os.path.join('prototype_slots_group_var2/pretrained_state/img_recon/states',
+                                                    '%05d.pth' % (1999)))
+    _model.load_state_dict(pretrained_state_dict)
+
+    # TODO: Here we specify that the encoder should not be updated any further
 
     # optimizer setup
     optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])

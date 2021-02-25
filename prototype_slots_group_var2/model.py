@@ -67,7 +67,7 @@ class RAE(nn.Module):
         # extract those attribute slots that were predicted into a tensor
         pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
         for k in range(self.n_proto_groups):
-            pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k], :]
+            pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k].detach(), :]
 
         out = self.proto_agg_layer(pred_proto_vecs)
         return out
