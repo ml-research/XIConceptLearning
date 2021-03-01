@@ -41,7 +41,7 @@ def ad_loss(proto_vecs):
 	return loss_ad
 
 
-def pair_cos_loss(attr_probs):
+def pair_cos_loss(attr_probs, group_ranges):
 	"""
 	Computes the pair loss based on the cosine similarity between the attribute prediction probabilities
 	(softmax outputs).
@@ -57,9 +57,11 @@ def pair_cos_loss(attr_probs):
 	# TODO: hard coded for now, s.t. the attributes in the first group should be the same, whereas those of second
 	#  group should be orthogonal to another
 	# for that group for which the attributes predictions should be the same over both img pairs
-	loss_pair += 1. - cos(attr_probs[0][0], attr_probs[1][0])
+	loss_pair += 1. - cos(attr_probs[0][:, group_ranges[0][0]: group_ranges[0][1]],
+	                      attr_probs[1][:, group_ranges[0][0]: group_ranges[0][1]])
 	# for that group for which the attribute predicitons should be orthogonal over both img pairs
-	loss_pair += cos(attr_probs[0][1], attr_probs[1][1])
+	loss_pair += cos(attr_probs[0][:, group_ranges[1][0]: group_ranges[1][1]],
+	                 attr_probs[1][:, group_ranges[1][0]: group_ranges[1][1]])
 
 	# return mean over samples
 	return torch.mean(loss_pair, dim=0)

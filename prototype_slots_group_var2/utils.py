@@ -6,7 +6,7 @@ import os
 import itertools
 import torchvision.transforms.functional as TF
 from PIL import Image
-
+from sklearn.metrics import accuracy_score
 
 def set_seed(seed=42):
     """
@@ -20,6 +20,15 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def get_cum_group_ids(self):
+    group_ids = list(np.cumsum(self.n_proto_vecs))
+    group_ids.insert(0, 0)
+    group_ranges = []
+    for k in range(self.n_proto_groups):
+        group_ranges.append([group_ids[k], group_ids[k+1]])
+    return group_ranges
 
 
 def freeze_enc(model):
@@ -152,3 +161,25 @@ def makedirs(path):
     """
     if not os.path.exists(path):
         os.makedirs(path)
+
+
+def comp_multilabel_acc(attr_probs, labels, group_ranges):
+    attr_preds = np.concatenate((one_hot_to_ids_list(attr_probs[0], group_ranges),
+                                 one_hot_to_ids_list(attr_probs[1], group_ranges)), axis=0)
+    attr_gt = one_hot_to_ids_list(labels, group_ranges)
+    return multioutput_multiclass_acc(attr_gt, attr_preds)
+
+
+def multioutput_multiclass_acc(gt, pred):
+    res = []
+    for i in range(len(gt)):
+        res.append(accuracy_score(gt[i], pred[i]))
+    return np.mean(res)
+
+
+def one_hot_to_ids_list(attr_prob, group_ranges):
+    attr_ids = np.ones((len(group_ranges), attr_prob.shape[0]))
+    for k, ids in enumerate(group_ranges):
+        attr_ids[k, :] = torch.argmax(attr_prob[:, ids[0]:ids[1]], dim=1)
+    attr_ids = attr_ids.T
+    return attr_ids

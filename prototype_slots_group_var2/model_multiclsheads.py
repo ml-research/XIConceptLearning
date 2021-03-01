@@ -15,7 +15,6 @@ class RAE(nn.Module):
         self.filter_dim = filter_dim
         self.n_proto_vecs = n_proto_vecs
         self.n_proto_groups = len(n_proto_vecs)
-        self.group_ranges = modules.get_cum_group_ids(n_proto_vecs)
         self.device = device
 
         # encoder
@@ -51,20 +50,16 @@ class RAE(nn.Module):
         self.dec_proto = modules.Decoder(input_dim=n_z, filter_dim=filter_dim,
                                    output_dim=input_dim[1], out_shapes=dec_out_shapes)
 
-        self.attr_predictor = modules.AttributePredictor(in_dim=self.latent_dim_flat,
+        self.attr_predictors = modules.AttributePredictors(in_dim=self.latent_dim_flat,
                                                            n_proto_vecs=self.n_proto_vecs,
                                                            temp=softmax_temp,
                                                            device=self.device)
 
-    def one_hot_to_ids_dict(self, attr_prob):
-        attr_ids = dict()
-        for k, ids in enumerate(self.group_ranges):
-            attr_ids[k] = torch.argmax(attr_prob[:, ids[0]:ids[1]], dim=1)
-        return attr_ids
-
     def comp_combined_prototype_per_sample(self, attr_ids):
         """
-        :param :
+        Given the softmin weighted prototypes per group, compute the mixture of these prototypes to combine to one
+        prototype.
+        :param prototype_vectors_softmin:
         :return:
         """
         # make sure not empty dict
@@ -110,17 +105,18 @@ class RAE(nn.Module):
     def forward_encoder(self, x):
         return self.enc(x)
 
-    def forward(self, x, labels=None):
+    def forward(self, x):
         # x: [batch, ch, w, h]
-        latent_enc = self.forward_encoder(x)  # [batch, latent_ch, latent_w, latent_h]
 
-        attr_prob = labels
-        if labels is None:
-            # predict from encoding which attribute is present
-            attr_prob = self.attr_predictor(latent_enc) # dict [n_groups, batch]
+        latent_enc = self.forward_encoder(x) # [batch, latent_ch, latent_w, latent_h]
 
-        # apply argmax over predictions
-        attr_ids = self.one_hot_to_ids_dict(attr_prob)
+        # predict from encoding which attribute is present
+        attr_prob = self.attr_predictors(latent_enc) # dict [n_groups, batch]
+
+        # apply argmax over predicitons, this also enforces that the attr-ids do not contain any gradient information
+        attr_ids = dict()
+        for k in range(self.n_proto_groups):
+            attr_ids[k] = torch.argmax(attr_prob[k], dim=1)
 
         # combine those attributes that were predicted to a single vector
         agg_proto = self.comp_combined_prototype_per_sample(attr_ids)
@@ -181,20 +177,15 @@ class Pair_RAE(RAE):
 
         return res
 
-    def forward_single(self, imgs, labels=None):
-        return super().forward(imgs, labels)
+    def forward_single(self, imgs):
+        return super().forward(imgs)
 
-    def forward(self, img_pair, labels=None):
+    def forward(self, img_pair):
         (img1, img2) = img_pair
-        if labels:
-            (labels1, labels2) = labels
-        else:
-            labels1 = None
-            labels2 = None
 
         # pass each individual imgs tensor through forward
-        res1_single = self.forward_single(img1, labels1) # returns results dict
-        res2_single = self.forward_single(img2, labels2) # returns results dict
+        res1_single = self.forward_single(img1) # returns results dict
+        res2_single = self.forward_single(img2) # returns results dict
 
         # combine the tensors of both forwards passes to joint result dict
         res = self.concat_res_dicts(res1_single, res2_single)

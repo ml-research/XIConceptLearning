@@ -232,7 +232,7 @@ class _ProtoAggAttentionLayer(nn.Module):
 
         # torch.Size([bs, groups, dim_protos])
         concat = output.transpose(1, 2).contiguous() \
-            .view(bs, -1, self.dim_protos)
+            .view(bs, -1, self.dim_protos).squeeze()
         # torch.Size([bs, dim_protos])
         out = torch.sum(concat, dim=1)
         out = self.linear_out(out)
@@ -251,51 +251,53 @@ class DenseLayerSoftmax(nn.Module):
         return out
 
 
-class AttributePredictor(nn.Module):
-    def __init__(self, in_dim=40, n_proto_vecs=(4,), temp=0.01, device='cpu'):
-        super(AttributePredictor, self).__init__()
 
+class AttributePredictors(nn.Module):
+    def __init__(self, in_dim=40, n_proto_vecs=(4,), temp=0.01, device='cpu'):
+        super(AttributePredictors, self).__init__()
         self.in_dim = in_dim
-        self.out_dim = sum(n_proto_vecs)
         self.n_proto_vecs = n_proto_vecs
         self.n_proto_groups = len(n_proto_vecs)
-        self.group_ranges = get_cum_group_ids(n_proto_vecs)
         self.temp = temp
 
-        self.attr_net = nn.Sequential(
-            nn.Linear(in_dim, in_dim),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(in_dim, in_dim),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(in_dim, self.out_dim)
-        )
+        self.predictors = dict()
+        for k in range(self.n_proto_groups):
+            self.predictors[k] = _AttributePredictor(in_dim=self.in_dim, out_dim=self.n_proto_vecs[k],
+                                                     temp=self.temp, device=device)
 
-    def apply_softmax_per_attr(self, x):
-        for ids in self.group_ranges:
-            x[:, ids[0]:ids[1]] = F.softmax(x[:, ids[0]:ids[1]]/self.temp, dim=1)
-        return x
+    def forward(self, x):
+        # flatten image input
+        x = x.view(-1, np.prod(list(x.shape[1:])))
+        # forward different attribute predictors
+        out = dict()
+        for k in range(self.n_proto_groups):
+            out[k]= self.predictors[k](x)
+        return out
+
+
+class _AttributePredictor(nn.Module):
+    def __init__(self, in_dim=40, out_dim=4, temp=0.01, device='cpu'):
+        super(_AttributePredictor, self).__init__()
+        self.temp = temp
+        self.enc = nn.Sequential(
+            nn.Linear(in_dim, int(in_dim/2)),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(int(in_dim/2), int(in_dim/3)),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+        )
+        self.cls = nn.Sequential(
+            nn.Linear(int(in_dim/3), out_dim),
+            # nn.Softmax(dim=1)
+        )
+        self.to(device)
 
     def forward(self, x):
         # flatten image input
         x = x.view(-1, np.prod(list(x.shape[1:])))
         # forward through encoding
-        x = self.attr_net(x)
-        # x = F.softmax(x/self.temp, dim=1)
-        x = self.apply_softmax_per_attr(x)
+        x = self.enc(x)
+        x = self.cls(x)
+        x = F.softmax(x/self.temp, dim=1)
         return x
-
-
-#----------------------------------------------------------------------------------------------------------------------#
-"""
-Misc functions
-"""
-
-def get_cum_group_ids(n_proto_vecs):
-    group_ids = list(np.cumsum(n_proto_vecs))
-    group_ids.insert(0, 0)
-    group_ranges = []
-    for k in range(len(n_proto_vecs)):
-        group_ranges.append([group_ids[k], group_ids[k + 1]])
-    return group_ranges
