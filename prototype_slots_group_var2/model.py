@@ -79,17 +79,17 @@ class RAE(nn.Module):
         out = self.proto_agg_layer(pred_proto_vecs)
         return out
 
-    def dec_wrapper(self, enc, Proto=False):
+    def dec_wrapper(self, enc, Proto=True):
         """
         Wrapper helper for decoding, helpful due to reshaping.
         :param enc:
                Proto:
         :return:
         """
-        if Proto:
-            return self.dec_proto(enc.reshape([enc.shape[0]] + self.latent_shape))
-        else:
+        if not Proto:
             return self.dec(enc.reshape([enc.shape[0]] + self.latent_shape))
+        else:
+            return self.dec_proto(enc.reshape([enc.shape[0]] + self.latent_shape))
     # def dec_wrapper(self, enc):
     #     """
     #     Wrapper helper for decoding, helpful due to reshaping.
