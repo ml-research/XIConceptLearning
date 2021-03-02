@@ -58,7 +58,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             rec_imgs, rec_protos, attr_probs, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
             # get multilabel classification accuracy
-            acc += utils.comp_multilabel_acc(attr_probs, labels, model.group_ranges)
+            # acc += utils.comp_multilabel_acc(attr_probs, labels, model.group_ranges)
+            acc += 0.
 
             # enforces the same prototype to be chosen for one group between a pair of imgs, i.e. one prototype should
             # be the same for both imgs
@@ -139,10 +140,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
                 loss_summary += f'{key} {loss_dict[key]:2.4f} '
             print(loss_summary)
 
-            print(f"Pred: {np.round(attr_probs[0][0].detach().cpu().numpy(), 4)} "
-                  f"GT {labels1[0].detach().cpu().numpy()}\n")
-            print(f"Pred: {np.round(attr_probs[0][1].detach().cpu().numpy(), 4)} "
-                  f"GT {labels1[1].detach().cpu().numpy()}\n")
+            print(f"Pred Img1: {np.round(attr_probs[0][0].detach().cpu().numpy(), 4)} "
+                  f"Pred Img2 {np.round(attr_probs[1][0].detach().cpu().numpy(), 4)}\n")
 
         if (e + 1) % config['save_step'] == 0 or e == config['epochs'] - 1 or e == 0:
             state = {
