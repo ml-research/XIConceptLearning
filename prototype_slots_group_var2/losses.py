@@ -60,8 +60,8 @@ def pair_cos_loss(attr_probs, group_ranges):
 	loss_pair += 1. - cos(attr_probs[0][:, group_ranges[1][0]: group_ranges[1][1]],
 	                      attr_probs[1][:, group_ranges[1][0]: group_ranges[1][1]])
 	# for that group for which the attribute predicitons should be orthogonal over both img pairs
-	loss_pair += cos(attr_probs[0][:, group_ranges[0][0]: group_ranges[0][1]],
-	                 attr_probs[1][:, group_ranges[0][0]: group_ranges[0][1]])
+	# loss_pair += cos(attr_probs[0][:, group_ranges[0][0]: group_ranges[0][1]],
+	#                  attr_probs[1][:, group_ranges[0][0]: group_ranges[0][1]])
 
 	# return mean over samples
 	return torch.mean(loss_pair, dim=0)
