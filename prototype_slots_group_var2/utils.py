@@ -180,6 +180,6 @@ def multioutput_multiclass_acc(gt, pred):
 def one_hot_to_ids_list(attr_prob, group_ranges):
     attr_ids = np.ones((len(group_ranges), attr_prob.shape[0]))
     for k, ids in enumerate(group_ranges):
-        attr_ids[k, :] = torch.argmax(attr_prob[:, ids[0]:ids[1]], dim=1)
+        attr_ids[k, :] = torch.argmax(attr_prob[:, ids[0]:ids[1]], dim=1).detach().cpu()
     attr_ids = attr_ids.T
     return attr_ids
