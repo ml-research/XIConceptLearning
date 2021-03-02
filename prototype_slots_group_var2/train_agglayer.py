@@ -52,7 +52,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             # be the same for both imgs
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
-                pair_loss = losses.pair_cos_loss(attr_probs)
+                pair_loss = losses.pair_cos_loss(attr_probs, model.group_ranges)
 
             # draws prototype close to training example
             r1_loss = torch.zeros((1,)).to(config['device'])
