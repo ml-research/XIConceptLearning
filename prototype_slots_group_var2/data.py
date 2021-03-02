@@ -141,6 +141,7 @@ class ToyDataPaired(Dataset):
         # TODO: check if normalisation is required, conflict currently with transform resize
         self.data = (self.data - self.data.min()) / (self.data.max() - self.data.min())
         # self.data.astype(np.float64)
+        # order of labels is [RECTANGLE, CIRCLE, CYAN, RED, YELLOW, GREEN]
         self.labels = np.load(self.labels_path, allow_pickle=True)
 
     def __getitem__(self, index):
