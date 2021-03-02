@@ -125,7 +125,8 @@ def get_test_set(data_loader, config):
         x_set = torch.Tensor(x_set)
         x_set = x_set.to(config['device'])
 
-    return x_set
+    y_set = torch.tensor(y_set)
+    return x_set, y_set
 
 
 class ToyDataPaired(Dataset):

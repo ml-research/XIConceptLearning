@@ -97,16 +97,19 @@ def plot_prototypes(model, writer, config, step=0):
 
 def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
     # apply encoding and decoding over a small subset of the training set
-    imgs = log_samples
-    examples_to_show = len(log_samples)
+    if type(log_samples) is tuple:
+        imgs, labels = log_samples
+    else:
+        imgs = log_samples
+    examples_to_show = len(imgs)
 
     if rec_protos is None:
         if config['learn'] == 'weakly':
-            res_dict = model.forward_single(imgs[:examples_to_show])
+            res_dict = model.forward_single(imgs, labels=labels)
             rec_z = res_dict['recon_imgs']
             rec_protos = res_dict['recon_protos']
         elif config['learn'] == 'unsup':
-            res_dict = model.forward(imgs[:examples_to_show])
+            res_dict = model.forward(imgs)
             rec_z = res_dict['recon_imgs']
             rec_protos = res_dict['recon_protos']
 
