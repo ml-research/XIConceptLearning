@@ -10,11 +10,11 @@ from torch.utils.tensorboard import SummaryWriter
 from rtpt.rtpt import RTPT
 from torch.optim import lr_scheduler
 
-import prototype_slots_group_var2.utils as utils
-import prototype_slots_group_var2.losses as losses
-import prototype_slots_group_var2.data as data
-from prototype_slots_group_var2.model import Pair_RAE
-from prototype_slots_group_var2.args import parse_args_as_dict
+import prototype_slots_group.utils as utils
+import prototype_slots_group.losses as losses
+import prototype_slots_group.data as data
+from prototype_slots_group.model import Pair_RAE
+from prototype_slots_group.args import parse_args_as_dict
 
 
 def train(model, data_loader, log_samples, optimizer, scheduler, writer, config):
@@ -32,6 +32,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             {'z_recon_loss': 0, 'proto_recon_loss': 0, 'r1_loss': 0, 'r2_loss': 0,
              'r5_loss': 0, 'pair_loss': 0, 'loss': 0, 'enc_mse_loss': 0, 'ad_loss': 0})
 
+        acc = 0
         for i, batch in enumerate(data_loader):
             imgs1, imgs2 = batch[0]
 
@@ -45,7 +46,10 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
             imgs1 = imgs1.to(config['device'])
             imgs2 = imgs2.to(config['device'])
             imgs = torch.cat((imgs1, imgs2), dim=0)
-            # labels1, labels2 = batch[1]
+            labels1, labels2 = batch[1]
+            labels1 = labels1.to(config['device'])
+            labels2 = labels2.to(config['device'])
+            labels = torch.cat((labels1, labels2), dim=0)
 
             # std = (config['epochs'] - e) / config['epochs']
 
@@ -53,9 +57,12 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
             rec_imgs, rec_protos, attr_probs, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
+            # get multilabel classification accuracy
+            # acc += utils.comp_multilabel_acc(attr_probs, labels, model.group_ranges)
+            acc += 0.
+
             # enforces the same prototype to be chosen for one group between a pair of imgs, i.e. one prototype should
             # be the same for both imgs
-            # TODO: reimplement
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
                 pair_loss = losses.pair_cos_loss(attr_probs, model.group_ranges)
@@ -122,15 +129,19 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
         if (e + 1) % config['display_step'] == 0 or e == config['epochs'] - 1:
             cur_lr = optimizer.param_groups[0]["lr"]
             writer.add_scalar("lr", cur_lr, global_step=e)
+            writer.add_scalar("acc", acc/len(data_loader), global_step=e)
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
 
         if (e + 1) % config['print_step'] == 0 or e == config['epochs'] - 1:
-            print(f'epoch {e} - loss {loss.item():2.4f} - time/epoch {(time.time() - start):2.2f}')
+            print(f'epoch {e} - loss {loss.item():2.4f} - acc {acc/len(data_loader)*100:.2f} - time/epoch {(time.time() - start):2.2f}')
             loss_summary = ''
             for key in loss_dict.keys():
                 loss_summary += f'{key} {loss_dict[key]:2.4f} '
             print(loss_summary)
+
+            print(f"Pred Img1: {np.round(attr_probs[0][0].detach().cpu().numpy(), 4)} "
+                  f"Pred Img2 {np.round(attr_probs[1][0].detach().cpu().numpy(), 4)}\n")
 
         if (e + 1) % config['save_step'] == 0 or e == config['epochs'] - 1 or e == 0:
             state = {

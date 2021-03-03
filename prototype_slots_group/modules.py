@@ -266,15 +266,17 @@ class AttributePredictor(nn.Module):
             nn.Linear(in_dim, in_dim),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(in_dim, in_dim),
-            nn.ReLU(),
-            nn.Dropout(0.2),
+            # nn.Linear(in_dim, in_dim),
+            # nn.ReLU(),
+            # nn.Dropout(0.2),
             nn.Linear(in_dim, self.out_dim)
         )
 
     def apply_softmax_per_attr(self, x):
         for ids in self.group_ranges:
-            x[:, ids[0]:ids[1]] = F.softmax(x[:, ids[0]:ids[1]]/self.temp, dim=1)
+            # x[:, ids[0]:ids[1]] = F.softmax(x[:, ids[0]:ids[1]]/self.temp, dim=1)
+            # TODO: possibly set hard to False?
+            x[:, ids[0]:ids[1]] = F.gumbel_softmax(x[:, ids[0]:ids[1]], tau=self.temp, dim=1, hard=True)
         return x
 
     def forward(self, x):

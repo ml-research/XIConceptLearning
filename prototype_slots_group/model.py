@@ -62,19 +62,39 @@ class RAE(nn.Module):
             attr_ids[k] = torch.argmax(attr_prob[:, ids[0]:ids[1]], dim=1)
         return attr_ids
 
-    def comp_combined_prototype_per_sample(self, attr_ids):
+    def comp_weighted_prototype_per_group(self, weights):
+        """
+        Computes the softmin over the distances within a group and weights each prototype by this weighting.
+        :param dists:
+        :param prototype_vectors:
+        :return:
+        """
+        # within every group compute a weighted prototype per group per training sample, using the weights of the
+        # categorical output of the gumbel softmax
+        # [batch, n_groups, dim_proto]
+        weighted_proto_vecs = torch.zeros(weights.shape[0],
+                                         self.n_proto_groups,
+                                         self.dim_proto,
+                                         device=self.device)
+
+        for k, ids in enumerate(self.group_ranges):
+            weighted_proto_vecs[:, k] = weights[:, ids[0]:ids[1]] @ self.proto_layer.proto_vecs[k]
+
+        return weighted_proto_vecs
+
+    def comp_combined_prototype_per_sample(self, attr_prob):
         """
         :param :
         :return:
         """
-        # make sure not empty dict
-        assert attr_ids
-        assert isinstance(attr_ids, dict)
-
-        # extract those attribute slots that were predicted into a tensor
-        pred_proto_vecs = torch.empty((len(attr_ids[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
-        for k in range(self.n_proto_groups):
-            pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_ids[k], :]
+        # in case specific IDs were passed to choose the prototypes, rather than the gumbel softmax values
+        if isinstance(attr_prob, dict):
+            # extract those attribute slots that were predicted into a tensor
+            pred_proto_vecs = torch.empty((len(attr_prob[0]), self.n_proto_groups, self.dim_proto), device=self.device) # [batch, n_groups, dim_proto]
+            for k in range(self.n_proto_groups):
+                pred_proto_vecs[:, k, :] = self.proto_layer.proto_vecs[k][attr_prob[k], :]
+        else:
+            pred_proto_vecs = self.comp_weighted_prototype_per_group(attr_prob)
 
         out = self.proto_agg_layer(pred_proto_vecs)
         return out
@@ -114,16 +134,19 @@ class RAE(nn.Module):
         # x: [batch, ch, w, h]
         latent_enc = self.forward_encoder(x)  # [batch, latent_ch, latent_w, latent_h]
 
-        attr_prob = labels
-        if labels is None:
+        # if fixed integer ids were passed
+        if labels is not None:
+            attr_prob = labels
+            # TODO: check if this is still needed. Maybe can just pass one hot vector and use this as weights
+            # apply argmax over predictions to get
+            attr_prob = self.one_hot_to_ids_dict(attr_prob)
+        # otherwise compute the gumbel softmax values, i.e. approximate categorical distribution
+        else:
             # predict from encoding which attribute is present
-            attr_prob = self.attr_predictor(latent_enc) # dict [n_groups, batch]
-
-        # apply argmax over predictions
-        attr_ids = self.one_hot_to_ids_dict(attr_prob)
+            attr_prob = self.attr_predictor(latent_enc)  # dict [n_groups, batch]
 
         # combine those attributes that were predicted to a single vector
-        agg_proto = self.comp_combined_prototype_per_sample(attr_ids)
+        agg_proto = self.comp_combined_prototype_per_sample(attr_prob)
 
         # decode the image and the prototypes
         recon_img, recon_proto = self.forward_decoder(latent_enc, agg_proto)

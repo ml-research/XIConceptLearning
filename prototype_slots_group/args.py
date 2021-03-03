@@ -47,7 +47,7 @@ def _get_parser():
     parser.add_argument('--filter-dim', type=int, default=32, help='filter dimensions for encoder')
     parser.add_argument('--n-z', type=int, default=10, help='latent dimensions')
     parser.add_argument('--agg-type', type=str, default='sum', help='type of prototype aggregation layer')
-    parser.add_argument('--softmax-temp', type=float, default=0.01, help='temperature of attribute prediction modules '
+    parser.add_argument('--temp', type=float, default=0.01, help='temperature of attribute prediction modules '
                                                                         'softmax, best is a small value to enforce '
                                                                         'sparseness in the probabilities')
 

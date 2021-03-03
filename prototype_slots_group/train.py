@@ -10,11 +10,11 @@ from torch.utils.tensorboard import SummaryWriter
 from rtpt.rtpt import RTPT
 from torch.optim import lr_scheduler
 
-import prototype_slots_group_var2.utils as utils
-import prototype_slots_group_var2.losses as losses
-import prototype_slots_group_var2.data as data
-from prototype_slots_group_var2.model import Pair_RAE
-from prototype_slots_group_var2.args import parse_args_as_dict
+import prototype_slots_group.utils as utils
+import prototype_slots_group.losses as losses
+import prototype_slots_group.data as data
+from prototype_slots_group.model import Pair_RAE
+from prototype_slots_group.args import parse_args_as_dict
 
 
 def train(model, data_loader, log_samples, optimizer, scheduler, writer, config):
@@ -34,22 +34,28 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
         for i, batch in enumerate(data_loader):
             imgs1, imgs2 = batch[0]
+
+            # sanity check pairs
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, 2)
+            # ax[0].imshow(imgs1[10].detach().cpu().reshape(config['img_shape']).permute(1, 2, 0).squeeze())
+            # ax[1].imshow(imgs2[10].detach().cpu().reshape(config['img_shape']).permute(1, 2, 0).squeeze())
+            # plt.savefig('tmp.png')
+
             imgs1 = imgs1.to(config['device'])
             imgs2 = imgs2.to(config['device'])
             imgs = torch.cat((imgs1, imgs2), dim=0)
-            labels1, labels2 = batch[1]
-            labels1 = labels1.to(config['device'])
-            labels2 = labels2.to(config['device'])
-            # labels = torch.cat((labels1, labels2), dim=0)
+            # labels1, labels2 = batch[1]
 
             # std = (config['epochs'] - e) / config['epochs']
 
-            res_dict = model.forward((imgs1, imgs2), (labels1, labels2))
+            res_dict = model.forward((imgs1, imgs2))
 
             rec_imgs, rec_protos, attr_probs, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
             # enforces the same prototype to be chosen for one group between a pair of imgs, i.e. one prototype should
             # be the same for both imgs
+            # TODO: reimplement
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
                 pair_loss = losses.pair_cos_loss(attr_probs, model.group_ranges)
@@ -66,6 +72,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
             loss_ad = torch.zeros((1,)).to(config['device'])
             if config['lambda_ad'] != 0:
+            # for k in range(len(proto_vecs)):
+            #     loss_ad += torch.mean(torch.sqrt(torch.sum(proto_vecs[k].T ** 2, dim=1)), dim=0)
                 loss_ad = losses.ad_loss(proto_vecs)
 
             proto_recon_loss = torch.zeros((1,)).to(config['device'])
@@ -172,7 +180,7 @@ def main(config):
                       n_z=config['n_z'], filter_dim=config['filter_dim'],
                       n_proto_vecs=config['prototype_vectors'],
                       train_pw=config['train_weighted_protos'],
-                      softmax_temp=config['softmax_temp'],
+                      softmax_temp=config['temp'],
                       device=config['device'],
                       agg_type=config['agg_type'])
 
