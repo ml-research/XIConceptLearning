@@ -53,9 +53,15 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, config)
 
             rec_imgs, rec_protos, attr_probs, feature_vecs_z, proto_vecs, agg_protos = utils.unfold_res_dict(res_dict)
 
+            # TODO: reimplement this with KLdivergence?
+            # NOTE:
+            # - for 'toycolorshapepairs' one of the attributes randomly varies and is not clear which one
+            # - for 'toysamecolordifshapepairs' the color remains fixed between both samples of a pair, i.e. only the
+            # shape varies
+            # - check the ToyDataPaired for the order of the labels, briefly it should be: order of labels is
+            # [RECTANGLE, CIRCLE, CYAN, RED, YELLOW, GREEN]
             # enforces the same prototype to be chosen for one group between a pair of imgs, i.e. one prototype should
             # be the same for both imgs
-            # TODO: reimplement
             pair_loss = torch.zeros((1,)).to(config['device'])
             if config['lambda_pair'] != 0:
                 pair_loss = losses.pair_cos_loss(attr_probs, model.group_ranges)

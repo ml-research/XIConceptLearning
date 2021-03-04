@@ -53,7 +53,6 @@ def pair_cos_loss(attr_probs, group_ranges):
 	cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 	loss_pair = 0
 
-	# TODO: currently using sum, maybe mean over groups?
 	# TODO: hard coded for now, s.t. the attributes in the second group should be the same, whereas those of first
 	#  group should be orthogonal to another
 	# for that group for which the attributes predictions should be the same over both img pairs
