@@ -276,7 +276,7 @@ class AttributePredictor(nn.Module):
         for ids in self.group_ranges:
             # x[:, ids[0]:ids[1]] = F.softmax(x[:, ids[0]:ids[1]]/self.temp, dim=1)
             # TODO: possibly set hard to False?
-            x[:, ids[0]:ids[1]] = F.gumbel_softmax(x[:, ids[0]:ids[1]], tau=self.temp, dim=1, hard=True)
+            x[:, ids[0]:ids[1]] = F.gumbel_softmax(x[:, ids[0]:ids[1]], tau=self.temp, dim=1, hard=False)
         return x
 
     def forward(self, x):
