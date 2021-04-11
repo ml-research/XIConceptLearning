@@ -124,27 +124,28 @@ class GProtoAETriplet(nn.Module):
 				triplet_loss_aug += 0.5 * torch.mean(-1. * F.cosine_similarity(input0_p, a_input0.detach()))
 				triplet_loss_aug += 0.5 * torch.mean(-1. * F.cosine_similarity(a_input0_p, input0.detach()))
 
+				# Hint: nan can occur if no encodings should be shared in this group
 				# update those encodings and prototypes that should be shared via negative cosine
-				triplet_loss_neg += 0.5 * torch.mean(-1. * catch_nan(
+				triplet_loss_neg += 0.5 * catch_nan(torch.mean(-1. *
 					F.cosine_similarity(
 						input0_p[bool_share.squeeze()],
 						input1[bool_share.squeeze()].detach()
 					)
 				))
-				triplet_loss_neg += 0.5 * torch.mean(-1. * catch_nan(
+				triplet_loss_neg += 0.5 * catch_nan(torch.mean(-1. *
 					F.cosine_similarity(
 						input0[bool_share.squeeze()].detach(),
 						input1_p[bool_share.squeeze()]
 					)
 				))
 				# update those encodings and prototypes that should not be shared via positive cosine
-				triplet_loss_neg += 0.5 * torch.mean(catch_nan(
+				triplet_loss_neg += 0.5 * catch_nan(torch.mean(
 					F.cosine_similarity(
 						input0_p[~bool_share.squeeze()],
 						input1[~bool_share.squeeze()].detach()
 					)
 				))
-				triplet_loss_neg += 0.5 * torch.mean(catch_nan(
+				triplet_loss_neg += 0.5 * catch_nan(torch.mean(
 					F.cosine_similarity(
 						input0[~bool_share.squeeze()].detach(),
 						input1_p[~bool_share.squeeze()]
