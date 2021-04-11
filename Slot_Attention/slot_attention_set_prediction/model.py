@@ -189,7 +189,7 @@ class SlotAttention_model(nn.Module):
 if __name__ == "__main__":
     x = torch.rand(1, 3, 128, 128)
     net = SlotAttention_model(n_slots=10, n_iters=3, n_attr=18,
-                              encoder_hidden_channels=64, attention_hidden_channels=128)
+                              encoder_hidden_channels=64, attention_hidden_channels=128, device='cpu')
     output = net(x)
     print(output.shape)
     summary(net, (3, 128, 128))
