@@ -16,9 +16,6 @@ class VectorQuantizerPair(nn.Module):
 		self._num_embeddings = num_embeddings
 		self.device = device
 
-		# softmin for distances
-		self.softmin = torch.nn.Softmin(dim=1)
-
 		self.embeddings = dict()
 		for group_id in range(num_groups):
 			self.embeddings[group_id] = nn.Embedding(self._num_embeddings, self._embedding_dim).to(self.device)
@@ -64,10 +61,6 @@ class VectorQuantizerPair(nn.Module):
 			distances1 = (torch.sum(input1 ** 2, dim=1, keepdim=True)
 			             + torch.sum(group_embeddings.weight ** 2, dim=1)
 			             - 2 * torch.matmul(input1, group_embeddings.weight.t()))
-
-			# normalize distances between 0 and 1
-			distances0 = self.softmin(distances0)
-			distances1 = self.softmin(distances1)
 
 			if std:
 				distances0 += torch.normal(torch.zeros_like(distances0), std)
