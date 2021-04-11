@@ -1,0 +1,3 @@
+How to run single label supervision:
+
+python VQ_VAE/train_gprotoae_weak_singlelabel.py --lambda-recon-z 0. --lambda-recon-proto 1. --lambda-cls 0. --lambda-commitment-cost 0.25 --lambda-pair 0. --initials WS --n-groups 2 --n-protos 4 --device cuda --device-ids 0 -s 13 -e 100 -bs 128 -lr 0.0004 --exp-name gproto-ae-weak-singlelabel --learn weakly --dataset toycolorshapepairs --print-step 1 --save-step 10
