@@ -26,4 +26,8 @@ python prototype_slots_group/train_agglayer.py --device cuda --lambda-pair 0. --
 --lambda-recon-proto 1. --lambda-r1 0. --lambda-recon-z 0. -lr 0.001 -bs 512 -e 200 -pv 2 4 \
 --data-dir Data --seed 13 --dataset toysamecolordifshapepairs --initials WS --print-step 20 \
 --learn weakly --temp .1 \
+<<<<<<< HEAD
 --exp-name test_agg_attention --agg-type attention
+=======
+--exp-name test_agg_attention --agg-type attention
+>>>>>>> 36fb5454586e6018eef404a4c6db52ff9c823677

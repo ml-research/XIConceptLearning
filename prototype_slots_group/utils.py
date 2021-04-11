@@ -105,7 +105,7 @@ def plot_examples(log_samples, model, writer, config, step=0, rec_protos=None):
 
     if rec_protos is None:
         if config['learn'] == 'weakly':
-            res_dict = model.forward_single(imgs, labels=labels)
+            res_dict = model.forward_single(imgs)
             rec_z = res_dict['recon_imgs']
             rec_protos = res_dict['recon_protos']
         elif config['learn'] == 'unsup':

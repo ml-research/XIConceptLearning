@@ -53,7 +53,6 @@ def pair_cos_loss(attr_probs, group_ranges):
 	cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
 	loss_pair = 0
 
-	# TODO: currently using sum, maybe mean over groups?
 	# TODO: hard coded for now, s.t. the attributes in the second group should be the same, whereas those of first
 	#  group should be orthogonal to another
 	# for that group for which the attributes predictions should be the same over both img pairs
@@ -65,3 +64,32 @@ def pair_cos_loss(attr_probs, group_ranges):
 
 	# return mean over samples
 	return torch.mean(loss_pair, dim=0)
+
+def pair_kl_loss(attr_probs, group_ranges):
+	"""
+	Computes the pair loss based on the divergence between the attribute prediction probabilities
+	(softmax outputs).
+	:param attr_probs: list of dict, [2 x {n_groups}], i.e. for each single image of the pair the dictionary contains
+	the predicted attribute probabilities of each group. E.g. attr_prob[0][0] contains the tensor of probabilities for
+	the first images af each pair for the first attribute group.
+	:return:
+	"""
+	kld = torch.nn.KLDivLoss(log_target=False, reduction='batchmean') # batchmean
+	
+	ce = torch.nn.CrossEntropyLoss(reduction='mean')
+
+	# TODO: hard coded for now, s.t. the attributes in the second group should be the same, whereas those of first
+	# group should be orthogonal to another
+	# for that group for which the attributes predictions should be the same over both img pairs
+
+	loss_pair = kld(attr_probs[0][:, group_ranges[1][0]: group_ranges[1][1]].log(),
+	                      attr_probs[1][:, group_ranges[1][0]: group_ranges[1][1]])
+	
+	## threshold for KL to be maximized to
+	## i.e. if KL > thresh, return 0 loss
+	##		else return thresh - KL
+	# thresh = torch.tensor(5).to(loss_pair.device)
+	# zero = torch.zeros(1).to(loss_pair.device)
+	# loss_pair = torch.max(zero, thresh - loss_pair)
+
+	return loss_pair# torch.mean(loss_pair, dim=0)
