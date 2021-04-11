@@ -7,6 +7,14 @@ import models.modules_proto as proto_modules
 import models.modules as modules
 from models.gproto_ae_sup import GProtoAE
 
+
+def catch_nan(x):
+	if torch.isnan(x):
+		return 0.
+	else:
+		return x
+
+
 class VectorQuantizerPair(nn.Module):
 	def __init__(self, num_groups, num_embeddings, embedding_dim, commitment_cost, device):
 		super(VectorQuantizerPair, self).__init__()
@@ -21,6 +29,9 @@ class VectorQuantizerPair(nn.Module):
 			self.embeddings[group_id] = nn.Embedding(self._num_embeddings, self._embedding_dim).to(self.device)
 			# TODO: should we maybe initialize such that each prototype embedding is equidistantly far apart?
 			self.embeddings[group_id].weight.data.uniform_(-1 / self._num_embeddings, 1 / self._num_embeddings)
+			# TODO: comment this in if the prototype vecotrs should be fixed and only the encoding will be move towards
+			#  the prototypes
+			# self.embeddings[group_id].weight.requires_grad = False
 		self._commitment_cost = commitment_cost
 
 	# TODO: add std on to distances?
@@ -96,6 +107,7 @@ class VectorQuantizerPair(nn.Module):
 			# q_latent_loss1 = F.mse_loss(quantized1, input1.detach())
 			# vq_loss += 0.5 * (q_latent_loss0 + self._commitment_cost * e_latent_loss0 +
 			#                q_latent_loss1 + self._commitment_cost * e_latent_loss1)
+
 			# only update those encodings and prototypes that should be shared
 			e_latent_loss0_shared = F.mse_loss(quantized0[label_bool_shared.squeeze()].detach(),
 			                                   input0[label_bool_shared.squeeze()])
@@ -108,11 +120,8 @@ class VectorQuantizerPair(nn.Module):
 			vq_loss += 0.5 * (q_latent_loss0_shared + self._commitment_cost * e_latent_loss0_shared +
 			               q_latent_loss1_shared + self._commitment_cost * e_latent_loss1_shared)
 
-			# # Pair Loss
-			# # pair_loss += F.mse_loss(input0[label].detach(), input1[label])
-			# # Pair Loss: enforce dissamilarity between encodings of non shared attributes
-			# # TODO: also enforce similarity between shared attributes explicitly rather than implicitly via VQ loss?
-			# pair_loss += torch.mean(F.cosine_similarity(input0[~label], input1[~label], dim=1))
+			# Pair Loss: measure how similar the encodings are that should be shared
+			pair_loss += catch_nan(F.mse_loss(input0[label_bool_shared.squeeze()], input1[label_bool_shared.squeeze()]))
 
 			quantized0 = input0 + (quantized0 - input0).detach()
 			quantized1 = input1 + (quantized1 - input1).detach()
@@ -134,12 +143,12 @@ class VectorQuantizerPair(nn.Module):
 		distances0_all = torch.stack(distances0_all)
 		distances1_all = torch.stack(distances1_all)
 
-		print("\n---------------")
-		print(distances0_all[:, :1].squeeze().detach().cpu().numpy())
-		print(distances1_all[:, :1].squeeze().detach().cpu().numpy())
-		print(enc_ids_one_hot_all[:, 0, :1].squeeze().detach().cpu().numpy())
-		print(enc_ids_one_hot_all[:, 1, :1].squeeze().detach().cpu().numpy())
-		print("---------------")
+		# print("\n---------------")
+		# print(distances0_all[:, :1].squeeze().detach().cpu().numpy())
+		# print(distances1_all[:, :1].squeeze().detach().cpu().numpy())
+		# print(enc_ids_one_hot_all[:, 0, :1].squeeze().detach().cpu().numpy())
+		# print(enc_ids_one_hot_all[:, 1, :1].squeeze().detach().cpu().numpy())
+		# print("---------------")
 
 		return avg_vq_loss, avg_pair_loss, quantized_all, avg_perplexity, enc_embeddings_all, \
 		       enc_ids_one_hot_all, (distances0_all, distances1_all)

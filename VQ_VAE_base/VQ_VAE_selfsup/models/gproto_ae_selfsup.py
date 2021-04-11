@@ -7,6 +7,13 @@ import models.modules_proto as proto_modules
 import models.modules as modules
 
 
+def catch_nan(x):
+	if torch.isnan(x):
+		return 0.
+	else:
+		return x
+
+
 # TODO: add passing unsimilar number of prototypes per group
 class GProtoAETriplet(nn.Module):
 	def __init__(self, num_hiddens, num_residual_layers, num_residual_hiddens,
@@ -117,14 +124,34 @@ class GProtoAETriplet(nn.Module):
 				triplet_loss_aug += 0.5 * torch.mean(-1. * F.cosine_similarity(input0_p, a_input0.detach()))
 				triplet_loss_aug += 0.5 * torch.mean(-1. * F.cosine_similarity(a_input0_p, input0.detach()))
 
-				# only update those encodings and prototypes that should be shared
-				triplet_loss_neg += 0.5 * torch.mean(-1. * F.cosine_similarity(input0_p[bool_share.squeeze()],
-				                                   input1[bool_share.squeeze()].detach()))
-				triplet_loss_neg += 0.5 * torch.mean(-1. * F.cosine_similarity(input0[bool_share.squeeze()].detach(),
-				                                   input1_p[bool_share.squeeze()]))
+				# update those encodings and prototypes that should be shared via negative cosine
+				triplet_loss_neg += 0.5 * torch.mean(-1. * catch_nan(
+					F.cosine_similarity(
+						input0_p[bool_share.squeeze()],
+						input1[bool_share.squeeze()].detach()
+					)
+				))
+				triplet_loss_neg += 0.5 * torch.mean(-1. * catch_nan(
+					F.cosine_similarity(
+						input0[bool_share.squeeze()].detach(),
+						input1_p[bool_share.squeeze()]
+					)
+				))
+				# update those encodings and prototypes that should not be shared via positive cosine
+				triplet_loss_neg += 0.5 * torch.mean(catch_nan(
+					F.cosine_similarity(
+						input0_p[~bool_share.squeeze()],
+						input1[~bool_share.squeeze()].detach()
+					)
+				))
+				triplet_loss_neg += 0.5 * torch.mean(catch_nan(
+					F.cosine_similarity(
+						input0[~bool_share.squeeze()].detach(),
+						input1_p[~bool_share.squeeze()]
+					)
+				))
 
-		avg_triplet_loss = triplet_loss_aug / self.num_groups + \
-		                   triplet_loss_neg / self.num_groups
+		avg_triplet_loss = triplet_loss_aug  + triplet_loss_neg
 		distances_aug = torch.stack(distances_aug)
 		distances_neg = torch.stack(distances_neg)
 		return avg_triplet_loss, (distances_aug, distances_neg)

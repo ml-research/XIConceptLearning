@@ -7,6 +7,14 @@ import models.modules_proto as proto_modules
 import models.modules as modules
 from models.gproto_ae_sup import GProtoAE
 
+
+def catch_nan(x):
+	if torch.isnan(x):
+		return 0.
+	else:
+		return x
+
+
 class VectorQuantizerPair(nn.Module):
 	def __init__(self, num_groups, num_embeddings, embedding_dim, commitment_cost, device):
 		super(VectorQuantizerPair, self).__init__()
@@ -21,7 +29,12 @@ class VectorQuantizerPair(nn.Module):
 			self.embeddings[group_id] = nn.Embedding(self._num_embeddings, self._embedding_dim).to(self.device)
 			# TODO: should we maybe initialize such that each prototype embedding is equidistantly far apart?
 			self.embeddings[group_id].weight.data.uniform_(-1 / self._num_embeddings, 1 / self._num_embeddings)
+			# TODO: comment this in if the prototype vecotrs should be fixed and only the encoding will be move towards
+			#  the prototypes
+			# self.embeddings[group_id].weight.requires_grad = False
 		self._commitment_cost = commitment_cost
+
+		self.mse = nn.MSELoss()
 
 	# TODO: add std on to distances?
 	# TODO: investigate the distances here, during training some turned to fully 0
@@ -98,22 +111,31 @@ class VectorQuantizerPair(nn.Module):
 			# vq_loss += 0.5 * (q_latent_loss0 + self._commitment_cost * e_latent_loss0 +
 			#                q_latent_loss1 + self._commitment_cost * e_latent_loss1)
 			# only update those encodings and prototypes that should be shared
-			e_latent_loss0_shared = F.mse_loss(quantized0[bool_share].detach(),
-			                                   input0[bool_share])
-			q_latent_loss0_shared = F.mse_loss(quantized0[bool_share],
-			                                   input0[bool_share].detach())
-			e_latent_loss1_shared = F.mse_loss(quantized1[bool_share].detach(),
-			                                   input1[bool_share])
-			q_latent_loss1_shared = F.mse_loss(quantized1[bool_share],
-			                                   input1[bool_share].detach())
+			e_latent_loss0_shared = catch_nan(F.mse_loss(quantized0[bool_share].detach(),
+			                                   input0[bool_share]))
+			q_latent_loss0_shared = catch_nan(F.mse_loss(quantized0[bool_share],
+			                                   input0[bool_share].detach()))
+			e_latent_loss1_shared = catch_nan(F.mse_loss(quantized1[bool_share].detach(),
+			                                   input1[bool_share]))
+			q_latent_loss1_shared = catch_nan(F.mse_loss(quantized1[bool_share],
+			                                   input1[bool_share].detach()))
+
 			vq_loss += 0.5 * (q_latent_loss0_shared + self._commitment_cost * e_latent_loss0_shared +
 			               q_latent_loss1_shared + self._commitment_cost * e_latent_loss1_shared)
 
-			# # Pair Loss
-			# # pair_loss += F.mse_loss(input0[label].detach(), input1[label])
-			# # Pair Loss: enforce dissamilarity between encodings of non shared attributes
-			# # TODO: also enforce similarity between shared attributes explicitly rather than implicitly via VQ loss?
+			# Pair Loss: enforce those encodings to be shared to be more similar
+			pair_loss += catch_nan(F.mse_loss(input0[bool_share], input1[bool_share]))
+			# Pair Loss: enforce dissamilarity between encodings of non shared attributes
+			# TODO: also enforce similarity between shared attributes explicitly rather than implicitly via VQ loss?
 			# pair_loss += torch.mean(F.cosine_similarity(input0[~label], input1[~label], dim=1))
+
+			# print(q_latent_loss0_shared)
+			# print(e_latent_loss0_shared)
+			# print(q_latent_loss1_shared)
+			# print(e_latent_loss1_shared)
+			# print(quantized1[bool_share].data)
+			# print(bool_share)
+			# print(pair_loss)
 
 			quantized0 = input0 + (quantized0 - input0).detach()
 			quantized1 = input1 + (quantized1 - input1).detach()
@@ -123,6 +145,8 @@ class VectorQuantizerPair(nn.Module):
 			                     torch.exp(-torch.sum(avg_probs1 * torch.log(avg_probs1 + 1e-10))))
 
 			quantized_all.append(torch.stack([quantized0.contiguous(), quantized1.contiguous()]))
+
+		# print('--------------')
 
 		avg_vq_loss = vq_loss / self.num_groups
 		avg_pair_loss = pair_loss / self.num_groups
