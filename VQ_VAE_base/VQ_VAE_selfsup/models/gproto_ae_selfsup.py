@@ -109,8 +109,8 @@ class GProtoAETriplet(nn.Module):
 				input1 = inputs1[group_id]
 
 				# compute distances for logging
-				distances_aug.append(F.cosine_similarity(input0, a_input0))
-				distances_neg.append(F.cosine_similarity(input0, input1))
+				distances_aug.append(-1. * F.cosine_similarity(input0, a_input0))
+				distances_neg.append(-1. * F.cosine_similarity(input0, input1))
 
 				# pass encodings through prediction heads as in https://arxiv.org/pdf/2011.10566.pdf
 				input0_p = self.prediction_heads[0][group_id].forward(input0)
@@ -152,7 +152,7 @@ class GProtoAETriplet(nn.Module):
 					)
 				))
 
-		avg_triplet_loss = triplet_loss_aug  + triplet_loss_neg
+		avg_triplet_loss = triplet_loss_aug + triplet_loss_neg
 		distances_aug = torch.stack(distances_aug)
 		distances_neg = torch.stack(distances_neg)
 		return avg_triplet_loss, (distances_aug, distances_neg)
