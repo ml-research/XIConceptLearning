@@ -7,7 +7,7 @@ Patrick Schramowski, and Kristian Kersting, published at CVPR 2022.
 This repository contains all source code required to reproduce the main experiments of the paper.
 
 Interactive Concept Swapping Network Overview:
-![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.pdf)
+![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.png)
 
 In this work, we show the advantages of prototype representations for understanding and revising the latent space of 
 neural concept learners. For this purpose, we introduce interactive Concept Swapping Networks (iCSNs), a novel 
