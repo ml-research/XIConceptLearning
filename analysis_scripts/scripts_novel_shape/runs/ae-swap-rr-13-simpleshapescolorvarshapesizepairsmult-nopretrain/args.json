@@ -1,0 +1,53 @@
+{
+  "device": "cuda:0",
+  "device_ids": [
+    0
+  ],
+  "save_step": 20,
+  "print_step": 1,
+  "display_step": 1,
+  "lambda_recon_proto": 1.0,
+  "lambda_rr": 10.0,
+  "train_protos": false,
+  "freeze_enc": false,
+  "learning_rate": 0.0001,
+  "lr_scheduler": false,
+  "lr_scheduler_warmup_steps": 1000,
+  "batch_size": 128,
+  "epochs": 200,
+  "n_workers": 2,
+  "prototype_vectors": [
+    6,
+    6,
+    6
+  ],
+  "n_protos": 2,
+  "proto_dim": 128,
+  "extra_mlp_dim": 0,
+  "extra_softmax": false,
+  "multiheads": true,
+  "enc_size": 512,
+  "temperature": 2.0,
+  "exp_name": "ae-swap-rr-13-simpleshapescolorvarshapesizepairsmult-nopretrain",
+  "results_dir": "WeakAEProtoLearning/runs/ae-swap-rr-13-simpleshapescolorvarshapesizepairsmult-nopretrain",
+  "model_dir": "WeakAEProtoLearning/runs/ae-swap-rr-13-simpleshapescolorvarshapesizepairsmult-nopretrain/states",
+  "img_dir": "WeakAEProtoLearning/runs/ae-swap-rr-13-simpleshapescolorvarshapesizepairsmult-nopretrain/imgs",
+  "data_dir": "Data/ToyData/",
+  "seed": 13,
+  "dataset": "simpleshapescolorvarshapesizepairsmult",
+  "initials": "WS",
+  "fpath_load_pretrained": null,
+  "ckpt_fp": "WeakAEProtoLearning/runs/ae-swap-13-simpleshapescolorvarshapesizepairsmult-nopretrain/states/07199.pth",
+  "test": false,
+  "wrong_protos": [
+    0,
+    1,
+    6,
+    8,
+    12,
+    13,
+    14,
+    15
+  ],
+  "n_groups": 3
+}

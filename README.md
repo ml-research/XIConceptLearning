@@ -1,59 +1,66 @@
-# XIConceptLearning
-Explainable Interactive Concept Learning
+# Explanatory Interactive Concept Learning
 
-- Unsup_Prototype_NonGroup contains the existing Marius experiments with a single list of prototypes
-- Unsup_Prototype_Group contains the fresh code fpr testing different ideas for the Group Prototypes
-- Prototype_Init contains the initial ProtoNet model in pytorch
-- Slot_Attention contains the code to the tested slot attention architectures, i.e. object discovery, set prediction 
-and a try at stacked slot attention
-- Slot_Attention_with_Prototypes contains initial test code for combining slot attention with prototypes heads
-- Toy_Data_Gen contains code for generating the toy shape data 
+This is the official repository of the article: [Interactive Disentanglement: Learning Concepts by Interacting with 
+their Prototype Representations](https://arxiv.org/pdf/2112.02290.pdf) by Wolfgang Stammer, Marius Memmel, 
+Patrick Schramowski, and Kristian Kersting, published at CVPR 2022.
 
-## Reading List:
+This repository contains all source code required to reproduce the main experiments of the paper.
 
-### Prototype (Rudin):
-https://arxiv.org/pdf/1710.04806.pdf
+Interactive Concept Swapping Network Overview:
+![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.pdf)
 
-### Slot Attention:
-https://arxiv.org/pdf/2006.15055.pdf
+In this work, we show the advantages of prototype representations for understanding and revising the latent space of 
+neural concept learners. For this purpose, we introduce interactive Concept Swapping Networks (iCSNs), a novel 
+framework for learning concept-grounded representations via weak super-vision and implicit prototype representations. 
+iCSNs learn to bind conceptual information to specific prototype slots by swapping the latent representations of paired 
+images. This semantically grounded and discrete latent space facilitates human understanding and human-machine 
+interaction. We support this claim by conducting experiments on our novel data set “Elementary Concept Reasoning” 
+(ECR), focusing on visual concepts shared by geometric objects.
 
-### Scouter:
-https://arxiv.org/pdf/2009.06138.pdf
+## Elementary Concept Reasoning (ECR) Dataset
 
-### IODINE:
-https://arxiv.org/pdf/1903.00450.pdf
+The novel ECR dataset can be downloaded from [here](https://tudatalib.ulb.tu-darmstadt.de/handle/tudatalib/3426). 
+Please copy or link the downloaded data to ```Data/``` 
 
-### ProtoTree:
-https://arxiv.org/pdf/2012.02046.pdf
+```ECR_Gen/``` contains the scripts for generating the different versions of the dataset.
 
-### Disentangling 3D Prototype Concept Learning:
-https://arxiv.org/pdf/2011.03367.pdf
+## Weakly-Supervised and Interactive Prototype Learning
 
-### Concept Whitening:
-https://arxiv.org/pdf/2002.01650.pdf
+### iCSN experiments
 
-### Concept Bottleneck:
-https://arxiv.org/pdf/2007.04612.pdf
+The relevant source code for the iCSN experiments can be found in the directory ```ProtoLearning/```, with 
+```ProtoLearning/train_icsn.py``` and ```ProtoLearning/scripts/run_icsn.sh``` containing the main iscn training 
+procedure and calls. This directory further contains scripts for interacting with the latent space and experiments 
+on novel concepts.
 
-### Attribute Prototype Network for Zero-Shot Learning
-https://papers.nips.cc/paper/2020/file/fa2431bf9d65058fe34e9713e32d60e6-Paper.pdf
+```BaseVAEs/``` contains the scripts for the baseline models. It contains an old version of the 
+[disent repository](https://github.com/nmichlo/disent).
 
-### On Unsupervised Disentanglement
-https://arxiv.org/pdf/1811.12359.pdf
+Finally, ```analysis_scripts/``` contains jupyter notebooks for the linear probing analysis as well as the novel shape 
+experiments.
 
-### On Weakly supervised Disentanglement
-https://arxiv.org/pdf/2002.02886.pdf
+### Docker
 
-https://arxiv.org/pdf/1910.09772.pdf
+We have attached a Dockerfile to make reproduction easier. We further recommend to build your own docker-compose file
+based on the DockerFile. To run without a docker-compose file:
 
-### Dump (Unordered):
+1. ```cd docker/```
 
-https://www.sciencedirect.com/science/article/pii/S2352154618301943
+2. ```docker build -t proto-learn -f Dockerfile .```
 
-https://arxiv.org/pdf/1707.03389.pdf
+3. ```docker run -it -v /pathtorepo:/workspace/repositories/XIConceptLearning --name proto-learn --entrypoint='/bin/bash' --runtime nvidia proto-learn```
 
-https://arxiv.org/pdf/1706.01427.pdf
+## Citation
+If you find this code useful in your research, please consider citing:
 
-https://arxiv.org/pdf/1711.04574.pdf
+> @article{stammer2021,
+  author    = {Wolfgang Stammer and
+               Marius Memmel and
+               Patrick Schramowski and
+               Kristian Kersting},
+  title     = {Interactive Disentanglement: Learning Concepts by Interacting with
+               their Prototype Representations},
+  journal   = {CoRR},
+  year      = {2021},
+}
 
-https://arxiv.org/pdf/1806.01830.pdf

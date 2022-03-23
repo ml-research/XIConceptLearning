@@ -1,5 +1,0 @@
-setproctitle
-torch
-torchvision
-rtpt
-scikit-image
