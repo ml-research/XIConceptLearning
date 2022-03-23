@@ -6,9 +6,6 @@ Patrick Schramowski, and Kristian Kersting, published at CVPR 2022.
 
 This repository contains all source code required to reproduce the main experiments of the paper.
 
-Interactive Concept Swapping Network Overview:
-![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.png)
-
 In this work, we show the advantages of prototype representations for understanding and revising the latent space of 
 neural concept learners. For this purpose, we introduce interactive Concept Swapping Networks (iCSNs), a novel 
 framework for learning concept-grounded representations via weak super-vision and implicit prototype representations. 
@@ -17,9 +14,17 @@ images. This semantically grounded and discrete latent space facilitates human u
 interaction. We support this claim by conducting experiments on our novel data set “Elementary Concept Reasoning” 
 (ECR), focusing on visual concepts shared by geometric objects.
 
+Interactive Concept Swapping Network Overview:
+![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.png)
+
 ## Elementary Concept Reasoning (ECR) Dataset
 
-The novel ECR dataset can be downloaded from [here](https://tudatalib.ulb.tu-darmstadt.de/handle/tudatalib/3426). 
+The novel ECR dataset can be downloaded from [here](https://tudatalib.ulb.tu-darmstadt.de/handle/tudatalib/3426) or via:
+
+```wget https://tudatalib.ulb.tu-darmstadt.de/bitstream/handle/tudatalib/3426/ECR.zip```
+
+```unzip ECR.zip``` 
+
 Please copy or link the downloaded data to ```Data/``` 
 
 ```ECR_Gen/``` contains the scripts for generating the different versions of the dataset.
