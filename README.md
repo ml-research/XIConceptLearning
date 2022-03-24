@@ -37,16 +37,16 @@ We have moved a minimal example of the iCSN framework into the directory ```icsn
 [introvae](https://github.com/hhb072/IntroVAE)-based autoencoder within the framework. This code also shows how to 
 handle unsupervised pretraining and a more sophisticated temperature scheduling than used in the original paper.
 
-The relevant source code for the iCSN experiments of the paper can be found in the directory ```ProtoLearning/```, with 
-```ProtoLearning/train_icsn.py``` and ```ProtoLearning/scripts/run_icsn.sh``` containing the main iscn training 
-procedure and calls. This directory further contains scripts for interacting with the latent space 
-(```ProtoLearning/scripts/run_icsn_rr.sh```) and experiments on novel concepts 
+The relevant source code for the iCSN experiments of the paper can be found in the ```experiments``` directory under 
+```ProtoLearning/```, with ```ProtoLearning/train_icsn.py``` and ```ProtoLearning/scripts/run_icsn.sh``` containing 
+the main iscn training procedure and calls. This directory further contains scripts for interacting with the latent 
+space (```ProtoLearning/scripts/run_icsn_rr.sh```) and experiments on novel concepts 
 (```ProtoLearning/scripts/run_icsn_{nospot, spot, novelshape}.sh```).
 
-```BaseVAEs/``` contains the scripts for the baseline models. It contains an old version of the 
+```experiments/BaseVAEs/``` contains the scripts for the baseline models. It contains an old version of the 
 [disent repository](https://github.com/nmichlo/disent).
 
-Finally, ```analysis_scripts/``` contains jupyter notebooks for the linear probing analysis as well as the novel shape 
+Finally, ```experiments/analysis_scripts/``` contains jupyter notebooks for the linear probing analysis as well as the novel shape 
 experiments.
 
 To run any of the scripts call them as ```icsn/scripts/run_icsn.sh 0 1``` with 0 indicating the GPU ID and 1 the random 
