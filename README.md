@@ -35,8 +35,9 @@ Please copy or link the downloaded data to ```Data/```
 
 The relevant source code for the iCSN experiments can be found in the directory ```ProtoLearning/```, with 
 ```ProtoLearning/train_icsn.py``` and ```ProtoLearning/scripts/run_icsn.sh``` containing the main iscn training 
-procedure and calls. This directory further contains scripts for interacting with the latent space and experiments 
-on novel concepts.
+procedure and calls. This directory further contains scripts for interacting with the latent space 
+(```ProtoLearning/scripts/run_icsn_rr.sh```) and experiments on novel concepts 
+(```ProtoLearning/scripts/run_icsn_{nospot, spot, novelshape}.sh```).
 
 ```BaseVAEs/``` contains the scripts for the baseline models. It contains an old version of the 
 [disent repository](https://github.com/nmichlo/disent).
