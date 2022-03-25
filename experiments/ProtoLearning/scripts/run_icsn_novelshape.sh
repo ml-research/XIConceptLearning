@@ -2,7 +2,7 @@
 
 DEVICE=$1
 
-CUDA_VISIBLE_DEVICES=0 python ProtoLearning/train_icsn_novelshape.py \
+CUDA_VISIBLE_DEVICES=0 python experiments/ProtoLearning/train_icsn_novelshape.py \
 --save-step 200 --print-step 1 --learning-rate 0.0001 --batch-size 128 --epochs 600 \
 --prototype-vectors 6 6 6 --exp-name icsn-0-ecr-novelshape \
 --seed 0 \

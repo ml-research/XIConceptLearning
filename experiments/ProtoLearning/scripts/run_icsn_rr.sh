@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0 python ProtoLearning/train_icsn_rr.py \
+CUDA_VISIBLE_DEVICES=0 python experiments/ProtoLearning/train_icsn_rr.py \
 --save-step 20 --print-step 1 --learning-rate 0.0001 --batch-size 128 --epochs 200 \
 --prototype-vectors 6 6 6 --exp-name icsn-rr-0-ecr --seed 0 \
 --dataset ecr --initials WS --lr-scheduler-warmup-steps 1000  \

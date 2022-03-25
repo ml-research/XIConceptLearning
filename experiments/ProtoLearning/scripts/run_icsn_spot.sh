@@ -2,7 +2,7 @@
 
 DEVICE=$1
 
-CUDA_VISIBLE_DEVICES=0 python ProtoLearning/train_icsn_spot.py \
+CUDA_VISIBLE_DEVICES=0 python experiments/ProtoLearning/train_icsn_spot.py \
 --save-step 50 --print-step 1 --learning-rate 0.0001 --batch-size 128 --epochs 2000 \
 --prototype-vectors 6 6 6 6 --exp-name icsn-0-ecr_spot --seed 0 \
 --dataset ecr_spot --initials WS --lr-scheduler-warmup-steps 1000  \
