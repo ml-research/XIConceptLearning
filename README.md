@@ -29,6 +29,10 @@ Please copy or link the downloaded data to ```Data/```
 
 ```ECR_Gen/``` contains the scripts for generating the different versions of the dataset.
 
+Overview of ECR dataset:
+![ECR Overview](./figures/dataset.png)
+
+
 ## Weakly-Supervised and Interactive Prototype Learning
 
 ### iCSN experiments

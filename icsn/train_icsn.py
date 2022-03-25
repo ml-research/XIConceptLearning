@@ -31,6 +31,7 @@ def train(model, data_loader, test_loader, optimizer, writer, cur_epoch, config)
         loss_dict = dict(
             {'loss': 0, "proto_recon_loss": 0})
 
+        # every time the temperature is reduced we reapply the lr warmup
         if e % config['temp_scheduler_step'] == 0:
             print(f"reinitiating the lr warmup: {e}")
             warmup_steps = 0
@@ -54,6 +55,7 @@ def train(model, data_loader, test_loader, optimizer, writer, cur_epoch, config)
             imgs = (imgs0, imgs1)
             shared_masks = shared_masks.to(config['device'])
 
+            # forward pass with pairs of images and the ids of shared factors
             preds, proto_recons = model.forward_pairs({'imgs': imgs, 'shared_masks': shared_masks})
 
             # reconstruciton loss
@@ -126,7 +128,7 @@ def test(model, test_loader, writer, config):
 
 
 def load_pretrained_ae_state_dict(_model, state_dict):
-
+    # load pretrained encoder into current _model
     model_state = _model.state_dict()
     for name, param in state_dict.items():
         if "_encoder" in name:
@@ -181,7 +183,7 @@ def main(config):
                   device=config['device']
                   )
 
-    # load pretrained encoder and decoder
+    # load pretrained encoder
     cur_epoch = 0
     if config['pretrained_model'] != None:
         ckpt = torch.load(config['pretrained_model'], map_location=torch.device(config['device']))
