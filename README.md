@@ -15,7 +15,8 @@ interaction. We support this claim by conducting experiments on our novel data s
 (ECR), focusing on visual concepts shared by geometric objects.
 
 Interactive Concept Swapping Network Overview:
-![Prototype Concept Learning via Interactive Concept Swapping Networks](./figures/icsn.png)
+<img src="https://github.com/ml-research/XIConceptLearning/figures/icsn.png" width=70%>
+
 
 ## Elementary Concept Reasoning (ECR) Dataset
 
@@ -30,8 +31,7 @@ Please copy or link the downloaded data to ```Data/```
 ```ECR_Gen/``` contains the scripts for generating the different versions of the dataset.
 
 Overview of ECR dataset:
-![ECR overview](./figures/dataset.png)
-
+<img src="https://github.com/ml-research/XIConceptLearning/figures/dataset.png" width=50%>
 
 ## Weakly-Supervised and Interactive Prototype Learning
 
