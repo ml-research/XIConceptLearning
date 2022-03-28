@@ -4,11 +4,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 import torch.nn.functional as F
-import torchvision.utils as vutils
 import math
 import time
-import torch.multiprocessing as multiprocessing
-from torch.nn.parallel import data_parallel
 
 
 class _Residual_Block(nn.Module):
@@ -131,26 +128,12 @@ class IntroAE(nn.Module):
 		return z, y
 
 	def encode(self, x):
-		z = data_parallel(self.encoder, x)
-		# z = self.encoder(x)
+		z = self.encoder(x)
 		return z
 
 	def decode(self, z):
-		y = data_parallel(self.decoder, z)
-		# y = self.decoder(z)
+		y = self.decoder(z)
 		return y
-
-	# def reconstruction_loss(self, prediction, target, size_average=False):
-	# 	error = (prediction - target).view(prediction.size(0), -1)
-	# 	error = error ** 2
-	# 	error = torch.sum(error, dim=-1)
-	#
-	# 	if size_average:
-	# 		error = error.mean()
-	# 	else:
-	# 		error = error.sum()
-	#
-	# 	return error
 
 
 if __name__ == '__main__':
