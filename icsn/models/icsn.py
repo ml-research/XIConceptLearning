@@ -26,25 +26,25 @@ class iCSN(nn.Module):
 		self.batch_size = 0 # dummy
 		self.temp_scheduler_step = temp_scheduler_step # at which steps (e.g. epochs or batch) to perform an update
 		self.temp_scheduler_rate = temp_scheduler_rate
-		self._encoder = encoder
-		self._decoder = decoder
+		self.encoder = encoder
+		self.decoder = decoder
 
 		# positions in one hot label vector that correspond to a class, e.g. indices 0 - 4 are for different colors
 		self.attr_positions = list(np.cumsum(self.n_proto_vecs))
 		self.attr_positions.insert(0, 0)
 
 		if isinstance(image_size, int):
-			self.latent_shape = tuple(self._encoder(torch.rand(1, 1, image_size)).shape[1:])
+			self.latent_shape = tuple(self.encoder(torch.rand(1, 1, image_size)).shape[1:])
 		elif isinstance(image_size, tuple):
-			self.latent_shape = tuple(self._encoder(torch.rand(1, 3, image_size[0], image_size[1])).shape[1:])
+			self.latent_shape = tuple(self.encoder(torch.rand(1, 3, image_size[0], image_size[1])).shape[1:])
 		self.latent_flat = np.prod(self.latent_shape)
 
-		self._encoder_linear = nn.Sequential(
+		self.encoder_linear = nn.Sequential(
 			nn.Linear(self.latent_flat, self.lin_enc_size),
 			nn.BatchNorm1d(self.lin_enc_size),
 			nn.ReLU(),
 		)
-		self._decoder_linear = nn.Sequential(
+		self.decoder_linear = nn.Sequential(
 			nn.Linear(self.n_attrs + self.extra_mlp_dim, self.latent_flat),
 			nn.BatchNorm1d(self.latent_flat),
 			nn.ReLU(),
@@ -188,16 +188,16 @@ class iCSN(nn.Module):
 		return z
 
 	def encode(self, x):
-		z = self._encoder(x) #[B, F, W, H]
-		# z = self._encoder_linear(z.view(-1, self.latent_flat))
-		z = self._encoder_linear(z.reshape(z.shape[0], self.latent_flat))
+		z = self.encoder(x) #[B, F, W, H]
+		# z = self.encoder_linear(z.view(-1, self.latent_flat))
+		z = self.encoder_linear(z.reshape(z.shape[0], self.latent_flat))
 		return z
 
 	def proto_decode(self, preds):
 		# reconstruct z
-		z_proto = self._decoder_linear(preds)
+		z_proto = self.decoder_linear(preds)
 
-		z_proto_recon = self._decoder(z_proto.view([-1] + list(self.latent_shape)))  # [B, 3, W, H]
+		z_proto_recon = self.decoder(z_proto.view([-1] + list(self.latent_shape)))  # [B, 3, W, H]
 
 		return z_proto_recon
 

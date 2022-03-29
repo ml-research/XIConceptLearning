@@ -131,7 +131,7 @@ def load_pretrained_ae_state_dict(_model, state_dict):
     # load pretrained encoder into current _model
     model_state = _model.state_dict()
     for name, param in state_dict.items():
-        if "_encoder" in name:
+        if "encoder" in name:
             if isinstance(param, Parameter):
                 # backwards compatibility for serialized parameters
                 param = param.data
@@ -145,7 +145,7 @@ def freeze_encoder(model):
     :return:
     """
     for name, p in model.named_parameters():
-        if "_encoder" in name:
+        if "encoder" in name:
             p.requires_grad = False
 
 def main(config):
