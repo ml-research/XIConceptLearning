@@ -56,7 +56,7 @@ def train(model, data_loader, test_loader, optimizer, writer, cur_epoch, config)
             shared_masks = shared_masks.to(config['device'])
 
             # forward pass with pairs of images and the ids of shared factors
-            preds, proto_recons = model.forward_pairs({'imgs': imgs, 'shared_masks': shared_masks})
+            preds, proto_recons = model.forward_pairs({'data': imgs, 'shared_masks': shared_masks})
 
             # reconstruciton loss
             # recon_loss_z0_proto = F.mse_loss(proto_recons[0], imgs0)
@@ -109,7 +109,7 @@ def train(model, data_loader, test_loader, optimizer, writer, cur_epoch, config)
             # plot a few samples with recon
             imgs = next(iter(test_loader))
             imgs = imgs.to(config['device'])
-            preds, recons = model.forward_single({'imgs': imgs})
+            preds, recons = model.forward_single({'data': imgs})
             utils.plot_examples_code(imgs, recons,
                                      preds.reshape(preds.shape[0], model.n_groups, -1),
                                      writer, config, step=e)

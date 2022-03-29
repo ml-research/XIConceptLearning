@@ -100,7 +100,7 @@ class iCSN(nn.Module):
 		return self.forward_single(kwargs)
 
 	def forward_pairs(self, data_dict):
-		imgs = data_dict['imgs']
+		imgs = data_dict['data']
 		shared_masks = data_dict['shared_masks']
 		# if current step (e.g. epoch) is at relevant count then decrease temperature by temp_scheduler_rate
 		# check if imgs is tuple
@@ -143,7 +143,7 @@ class iCSN(nn.Module):
 		return (pred0, pred1), (z0_proto_recon, z1_proto_recon, z0_proto_recon_swap, z1_proto_recon_swap)
 
 	def forward_single(self, data_dict):
-		imgs = data_dict['imgs']
+		imgs = data_dict['data']
 		self.batch_size = imgs.shape[0]
 
 		# x: [B, 3, 64, 64] --> [B, F, W, H] --> [B, D]
