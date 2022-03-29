@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from models.torch_truncnorm.TruncatedNormal import TruncatedNormal
+from icsn.models.torch_truncnorm.TruncatedNormal import TruncatedNormal
 
 
 class iCSN(nn.Module):
@@ -33,7 +33,10 @@ class iCSN(nn.Module):
 		self.attr_positions = list(np.cumsum(self.n_proto_vecs))
 		self.attr_positions.insert(0, 0)
 
-		self.latent_shape = tuple(self._encoder(torch.rand(1, 3, image_size, image_size)).shape[1:])
+		if len(image_size) == 2:
+			self.latent_shape = tuple(self._encoder(torch.rand(1, 3, image_size[0], image_size[1])).shape[1:])
+		elif len(image_size) == 1:
+			self.latent_shape = tuple(self._encoder(torch.rand(1, 1, image_size)).shape[1:])
 		self.latent_flat = np.prod(self.latent_shape)
 
 		self._encoder_linear = nn.Sequential(

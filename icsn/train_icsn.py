@@ -179,7 +179,7 @@ def main(config):
                   multiheads=config['multiheads'], train_protos=config['train_protos'],
                   temp_scheduler_step=config['temp_scheduler_step'],
                   temp_scheduler_rate=config['temp_scheduler_rate'],
-                  image_size=image_size,
+                  image_size=(image_size, image_size),
                   device=config['device']
                   )
 
