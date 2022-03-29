@@ -37,7 +37,7 @@ def _get_parser():
     parser.add_argument('--lr-scheduler', action='store_true',
                         help='use learning rate scheduler?')
     parser.add_argument('--lr-scheduler-warmup-steps', type=int, default=0,
-                        help='learning rate scheduler warmup steps')
+                        help='learning rate scheduler warmup steps; important! this is counted in batch steps')
     parser.add_argument('-bs', '--batch-size', type=int, default=500,
                         help='batch size, for paired training this is the batch size of pairs, so in the end you have 2xbs')
     parser.add_argument('-e', '--epochs', type=int, default=500,
@@ -64,7 +64,7 @@ def _get_parser():
     parser.add_argument('--temperature', type=float, default=1.,
                         help='temperature of gumbel softmax')
     parser.add_argument('--temp-scheduler-step', type=int, default=5,
-                        help='temperature scheduling step parameter, i.e. after how many epochs '
+                        help='temperature scheduling step parameter, counted in epochs, i.e. after how many epochs '
                              'should the temperature be reduced?')
     parser.add_argument('--temp-scheduler-rate', type=float, default=.2,
                         help='temperature scheduling rate parameter (between 0. an 1.), '
