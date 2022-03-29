@@ -33,10 +33,10 @@ class iCSN(nn.Module):
 		self.attr_positions = list(np.cumsum(self.n_proto_vecs))
 		self.attr_positions.insert(0, 0)
 
-		if len(image_size) == 2:
-			self.latent_shape = tuple(self._encoder(torch.rand(1, 3, image_size[0], image_size[1])).shape[1:])
-		elif len(image_size) == 1:
+		if isinstance(image_size, int):
 			self.latent_shape = tuple(self._encoder(torch.rand(1, 1, image_size)).shape[1:])
+		elif isinstance(image_size, tuple):
+			self.latent_shape = tuple(self._encoder(torch.rand(1, 3, image_size[0], image_size[1])).shape[1:])
 		self.latent_flat = np.prod(self.latent_shape)
 
 		self._encoder_linear = nn.Sequential(
