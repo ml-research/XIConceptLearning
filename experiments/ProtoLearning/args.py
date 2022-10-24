@@ -60,9 +60,9 @@ def _get_parser():
 
     parser.add_argument('-s', '--seed', type=int, default=42, help='seed')
 
-    parser.add_argument('-d', '--dataset', type=str, default='toycolor',
+    parser.add_argument('-d', '--dataset', type=str, default='ecr',
                         help="'toycolor' or 'mnist' or 'toycolorshape' or 'toyshapesize' or 'toycolorshapesize'")
-    parser.add_argument('--initials', type=str, required=True,
+    parser.add_argument('--initials', type=str, default="ML", #required=True,
                         help="Your initials")
     parser.add_argument('--fpath-load-pretrained', type=str, default=None,
                         help='specify the fpath to the pretrained model')
@@ -75,7 +75,8 @@ def _get_parser():
                              'list[[0,2], [2,4]]' )
     parser.add_argument('--pent-id', type=int, default=None, help='which prototype should encode the pentagon shape?')
     parser.add_argument('--circle-id', type=int, default=None, help='which prototype should encode the circle shape?')
-
+    parser.add_argument('--wandb', action='store_true',
+                        help='should results be logged to wandb???')
     return parser
 
 

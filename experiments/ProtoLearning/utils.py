@@ -48,7 +48,7 @@ def freeze_enc(model):
             p.requires_grad = False
 
 
-def plot_prototypes(model, writer, config, step=0):
+def plot_prototypes(model, writer, logger, config, step=0):
     """
     Visualize all mixtures of prototypes.
     :param model:
@@ -104,11 +104,15 @@ def plot_prototypes(model, writer, config, step=0):
         image = Image.open(img_save_path)
         image = TF.to_tensor(image)
         writer.add_image(f'train_proto', image, global_step=step)
+        try:
+            logger.log_image(key=f'train_proto', images=[image], step=step)
+        except Exception as e:
+            pass
 
     model.train()
 
 
-def plot_test_examples(log_samples, model, writer, config, step=0):
+def plot_test_examples(log_samples, model, writer, logger, config, step=0):
     model.eval()
     # apply encoding and decoding over a small subset of the training set
     imgs, labels = log_samples
@@ -165,6 +169,10 @@ def plot_test_examples(log_samples, model, writer, config, step=0):
         image = Image.open(img_save_path)
         image = TF.to_tensor(image)
         writer.add_image(f'train_rec/decoding_result', image, global_step=step)
+        try:
+            logger.log_image(key=f'train_rec/decoding_result', images=[image], step=step)
+        except Exception as e:
+            pass
 
     # plot symbol/prediction arrays
     if config['n_groups'] == 1:
@@ -191,7 +199,10 @@ def plot_test_examples(log_samples, model, writer, config, step=0):
         image = Image.open(img_save_path)
         image = TF.to_tensor(image)
         writer.add_image(f'train_rec/code', image, global_step=step)
-
+        try:
+            logger.log_image(key=f'train_rec/code', images=[image], step=step)
+        except Exception as e:
+            pass
 
     model.train()
 
@@ -245,7 +256,10 @@ def plot_train_examples(imgs, recon_imgs, writer, config, step=0):
         image = Image.open(img_save_path)
         image = TF.to_tensor(image)
         writer.add_image(f"train_rec/train_decoding_result_pair_{pair_idx}", image, global_step=step)
-
+        try:
+            logger.log_image(key=f"train_rec/train_decoding_result_pair_{pair_idx}", images=[image], step=step)
+        except Exception as e:
+            pass
 
 def makedirs(path):
     """

@@ -2,7 +2,6 @@ setuptools==59.5.0
 Cython==0.28.4
 numpy==1.19.5
 pandas==1.2.2
-scipy==1.6.0
 statsmodels==0.13.1
 scikit-learn>=0.20.0
 tensorboard_logger==0.1.0
@@ -10,10 +9,11 @@ tqdm==4.57.0
 seaborn==0.11.2
 setproctitle==1.2.2
 tfrecord==1.14.1
-torch==1.12.1
+torch==1.11.0+cu115
 torchvision==0.13.1
 rtpt==0.0.4
 scipy==1.6.0
 seaborn==0.11.2
 pytorch-lightning
 wandb
+protobuf==3.20
