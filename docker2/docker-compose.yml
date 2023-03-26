@@ -7,7 +7,7 @@ services:
     build:
      context: .
      dockerfile: Dockerfile
-    shm_size: '2gb'
+    shm_size: '16gb'
     volumes:
      - /storage-02/ml-mlang/repositories/:/workspace/repositories
      - /storage-02/ml-mlang/data/:/workspace/data
