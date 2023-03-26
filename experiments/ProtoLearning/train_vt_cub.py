@@ -13,7 +13,7 @@ from torch.nn.parameter import Parameter
 
 import experiments.ProtoLearning.utils as utils
 import experiments.ProtoLearning.data as data
-from experiments.ProtoLearning.models.icsn import iCSN
+from experiments.ProtoLearning.models.vt_cub import VT
 from experiments.ProtoLearning.args import parse_args_as_dict
 from pytorch_lightning.loggers import WandbLogger
 
@@ -26,9 +26,11 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
     os.environ["WANDB_API_KEY"] =  "your_key_here"
 
     logger = WandbLogger(name=config['exp_name'], project= "XIConceptLearning", log_model= False)  if config['wandb'] else None
+
     warmup_steps = cur_epoch * len(data_loader)
 
     for e in range(cur_epoch, config['epochs']):
+        
         max_iter = len(data_loader)
         start = time.time()
         loss_dict = dict(
@@ -43,24 +45,35 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
                 optimizer.param_groups[0]['lr'] = learning_rate
             warmup_steps += 1
 
-            imgs, labels_one_hot, labels_id, shared_labels = batch
+            imgs, labels_one_hot, shared_labels = batch
 
             imgs0 = imgs[0].to(config['device'])
             imgs1 = imgs[1].to(config['device'])
             imgs = (imgs0, imgs1)
-            # labels0_one_hot = labels_one_hot[0].to(config['device']).float()
-            # labels1_one_hot = labels_one_hot[1].to(config['device']).float()
-            # labels0_ids = labels_id[0].to(config['device']).float()
-            # labels1_ids = labels_id[1].to(config['device']).float()
             shared_labels = shared_labels.to(config['device'])
 
-            model.softmax_temp  = get_softmax_temp(e, config)
+
+            # TODO: hack for now
+            if e >= 7000:
+                model.softmax_temp = .000001
+            elif e >= 6000:
+                model.softmax_temp = .00001
+            elif e >= 5000:
+                model.softmax_temp = .0001
+            elif e >= 4000:
+                model.softmax_temp = .001
+            elif e >= 3000:
+                model.softmax_temp = .01
+            elif e >= 2000:
+                model.softmax_temp = .1
+            elif e >= 1000:
+                model.softmax_temp = .5
+            elif e < 1000:
+                model.softmax_temp = 2.
 
             preds, proto_recons = model.forward(imgs, shared_labels)
 
-            # reconstruciton loss
-            # recon_loss_z0_proto = F.mse_loss(proto_recons[0], imgs0)
-            # recon_loss_z1_proto = F.mse_loss(proto_recons[1], imgs1)
+            # reconstruction loss
             recon_loss_z0_swap_proto = F.mse_loss(proto_recons[2], imgs0)
             recon_loss_z1_swap_proto = F.mse_loss(proto_recons[3], imgs1)
             ave_recon_loss_proto = (recon_loss_z0_swap_proto + recon_loss_z1_swap_proto) / 2
@@ -87,8 +100,6 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             writer.add_scalar("lr", cur_lr, global_step=e)
             if config['wandb']:
                 _log(logger, name="lr", value=cur_lr, epoch=e)
-                _log(logger, name="softmax_temp", value=model.softmax_temp, epoch=e)
-
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
                 if config['wandb']:
@@ -112,7 +123,6 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
                 'ep': e,
                 'config': config
             }
-            # torch.save(state, os.path.join(writer.log_dir, f"{config['exp_name']}.pth"))
             torch.save(state, os.path.join(config['model_dir'], '%05d.pth' % (e)))
 
             if config['extra_mlp_dim'] == 0.:
@@ -123,28 +133,6 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
 
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 
-def get_softmax_temp(epoch, config):
-    if config["hack"]:
-        # legacy hack from initial paper
-        if epoch >= 7000:
-            return .000001
-        elif epoch >= 6000:
-            return .00001
-        elif epoch >= 5000:
-            return .0001
-        elif epoch >= 4000:
-            return .001
-        elif epoch >= 3000:
-            return .01
-        elif epoch >= 2000:
-            return .1
-        elif epoch >= 1000:
-            return .5
-        elif epoch < 1000:
-            return 2.
-    else:
-        x = epoch / config["epochs"]
-        return torch.exp(torch.tensor(-(16*x-1)))
 
 def _log(logger, name, value, epoch):
     try:
@@ -187,6 +175,8 @@ def main(config):
     config['prototype_cumsum'] = list(np.cumsum(config['prototype_vectors']))
     config['prototype_cumsum'].insert(0, 0)
 
+    if config['dataset'] != 'cub':
+        print(f"Dataset is '{config['dataset']}'. You might want to change it to 'cub'.")
     # get train data
     _data_loader = data.get_dataloader(config)
 
@@ -197,7 +187,7 @@ def main(config):
     writer = SummaryWriter(log_dir=config['results_dir'])
 
     # model setup
-    _model = iCSN(num_hiddens=64, num_residual_layers=2, num_residual_hiddens=64,
+    _model = VT(num_hiddens=50, num_residual_layers=2, num_residual_hiddens=50,
                     n_proto_vecs=config['prototype_vectors'], lin_enc_size=config['lin_enc_size'],
                     proto_dim=config['proto_dim'], softmax_temp=config['temperature'],
                     extra_mlp_dim=config['extra_mlp_dim'],
@@ -219,15 +209,13 @@ def main(config):
         print(f"loading {config['ckpt_fp']} from epoch {cur_epoch} for further training")
 
     # optimizer setup
-    optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, _model.parameters()), lr=config['learning_rate'])
 
     # learning rate scheduler
     scheduler = None
     if config['lr_scheduler']:
         num_steps = len(_data_loader) * config['epochs'] - cur_epoch
         num_steps += config['lr_scheduler_warmup_steps']
-        # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_steps, eta_min=2e-5)
-        # scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.00001, max_lr=0.0004, step_size_up=100)
     if not config['test']:
         # start training
         train(_model, _data_loader, test_set, optimizer, scheduler, writer, cur_epoch, config)

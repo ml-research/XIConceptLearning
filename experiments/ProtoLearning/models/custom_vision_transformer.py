@@ -230,7 +230,7 @@ class CustomVisionTransformer(nn.Module):
         # TODO: only return x without head
 
         # Classifier "token" as used by standard language architectures
-        #x = x[:, 0]
+        x = x[:, 0]
 
         #x = self.heads(x)
 

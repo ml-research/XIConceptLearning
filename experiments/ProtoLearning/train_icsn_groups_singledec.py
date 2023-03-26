@@ -13,7 +13,7 @@ from torch.nn.parameter import Parameter
 
 import experiments.ProtoLearning.utils as utils
 import experiments.ProtoLearning.data as data
-from experiments.ProtoLearning.models.icsn import iCSN
+from experiments.ProtoLearning.models.icsn_groups_singledec import iCSN
 from experiments.ProtoLearning.args import parse_args_as_dict
 from pytorch_lightning.loggers import WandbLogger
 
@@ -26,9 +26,22 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
     os.environ["WANDB_API_KEY"] =  "your_key_here"
 
     logger = WandbLogger(name=config['exp_name'], project= "XIConceptLearning", log_model= False)  if config['wandb'] else None
+
     warmup_steps = cur_epoch * len(data_loader)
 
+    n_per_group = config['n_per_group']
+    model.set_train_group(cur_epoch//n_per_group)
+
     for e in range(cur_epoch, config['epochs']):
+        group_id = min(e // n_per_group, model.n_groups-1)
+        if e / n_per_group >= model.train_group+1:
+            # switch to next train group if possible
+            if e // n_per_group < model.n_groups:
+                model.set_train_group(group_id)
+            else:
+                # continue to train the decoder only
+                model.freeze_all_train_groups()
+        
         max_iter = len(data_loader)
         start = time.time()
         loss_dict = dict(
@@ -48,24 +61,20 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             imgs0 = imgs[0].to(config['device'])
             imgs1 = imgs[1].to(config['device'])
             imgs = (imgs0, imgs1)
-            # labels0_one_hot = labels_one_hot[0].to(config['device']).float()
-            # labels1_one_hot = labels_one_hot[1].to(config['device']).float()
-            # labels0_ids = labels_id[0].to(config['device']).float()
-            # labels1_ids = labels_id[1].to(config['device']).float()
             shared_labels = shared_labels.to(config['device'])
 
-            model.softmax_temp  = get_softmax_temp(e, config)
+            if not model.decoder_only:
+                model.softmax_temp[model.train_group]  = get_softmax_temp(e, n_per_group)
 
-            preds, proto_recons = model.forward(imgs, shared_labels)
+            preds, proto_recons = model.forward(imgs, shared_labels, group_id)
 
-            # reconstruciton loss
-            # recon_loss_z0_proto = F.mse_loss(proto_recons[0], imgs0)
-            # recon_loss_z1_proto = F.mse_loss(proto_recons[1], imgs1)
+            # reconstruction loss
             recon_loss_z0_swap_proto = F.mse_loss(proto_recons[2], imgs0)
             recon_loss_z1_swap_proto = F.mse_loss(proto_recons[3], imgs1)
             ave_recon_loss_proto = (recon_loss_z0_swap_proto + recon_loss_z1_swap_proto) / 2
 
             loss = config['lambda_recon_proto'] * ave_recon_loss_proto
+            #loss = config['lambda_recon_proto'] * recon_loss_z0_proto
 
             optimizer.zero_grad()
             loss.backward()
@@ -87,7 +96,8 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             writer.add_scalar("lr", cur_lr, global_step=e)
             if config['wandb']:
                 _log(logger, name="lr", value=cur_lr, epoch=e)
-                _log(logger, name="softmax_temp", value=model.softmax_temp, epoch=e)
+                for train_group, temp in enumerate(model.softmax_temp):
+                    _log(logger, name="softmax_temp_"+str(train_group), value=temp, epoch=e)
 
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
@@ -123,27 +133,27 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
 
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 
-def get_softmax_temp(epoch, config):
+def get_softmax_temp(epoch, n_per_group):
+    x = epoch % n_per_group / n_per_group
     if config["hack"]:
         # legacy hack from initial paper
-        if epoch >= 7000:
+        if x >= 7/8:
             return .000001
-        elif epoch >= 6000:
+        elif x >= 6/8:
             return .00001
-        elif epoch >= 5000:
+        elif x >= 5/8:
             return .0001
-        elif epoch >= 4000:
+        elif x >= 4/8:
             return .001
-        elif epoch >= 3000:
+        elif x >= 3/8:
             return .01
-        elif epoch >= 2000:
+        elif x >= 2/8:
             return .1
-        elif epoch >= 1000:
+        elif x >= 1/8:
             return .5
-        elif epoch < 1000:
+        elif x < 1/8:
             return 2.
     else:
-        x = epoch / config["epochs"]
         return torch.exp(torch.tensor(-(16*x-1)))
 
 def _log(logger, name, value, epoch):
@@ -219,6 +229,7 @@ def main(config):
         print(f"loading {config['ckpt_fp']} from epoch {cur_epoch} for further training")
 
     # optimizer setup
+    #optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, _model.parameters()), lr=config['learning_rate'])
     optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])
 
     # learning rate scheduler

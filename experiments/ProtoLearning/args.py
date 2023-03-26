@@ -24,9 +24,15 @@ def _get_parser():
     # parser.add_argument('--lambda-recon-z', type=float, default=0., help='lambda for z recon loss')
     parser.add_argument('--lambda-recon-proto', type=float, default=1.,
                         help='lambda for agg prototype recon loss')
+    parser.add_argument('--gamma-discriminator', type=float, default=1.,
+                        help='gamma for discriminator loss')
+    parser.add_argument('--gamma-classifier', type=float, default=1.,
+                        help='gamma for classifier loss')
+    parser.add_argument('--gamma-slots', type=float, default=1.,
+                        help='gamma for slot loss')
     parser.add_argument('--lambda-rr', type=float, default=1.,
                         help='lambda for rigth reason mse loss')
-    parser.add_argument('--train-protos', action='store_true', help='should the prototype embedding weights be updated '
+    parser.add_argument('--train-protos', action='store_true', default=False, help='should the prototype embedding weights be updated '
                                                                     'too?')
     parser.add_argument('--freeze-enc', action='store_true', help='should the encoder be further finetuned or not')
 
@@ -34,23 +40,25 @@ def _get_parser():
     parser.add_argument('--lr-scheduler', action='store_true', help='use learning rate scheduler')
     parser.add_argument('--lr-scheduler-warmup-steps', type=int, default=0,
                         help='learning rate scheduler warmup steps')
-    parser.add_argument('-bs', '--batch-size', type=int, default=500, help='batch size, for paired training this is '
+    parser.add_argument('-bs', '--batch-size', type=int, default=1000, help='batch size, for paired training this is '
                                                                            'the batch size of pairs, so in the end you '
                                                                            'have 2xbs')
-    parser.add_argument('-e', '--epochs', type=int, default=500, help='batch size')
+    parser.add_argument('-e', '--epochs', type=int, default=3000, help='epochs')
     parser.add_argument('--n-workers', type=int, default=2, help='workers to load data')
+    parser.add_argument('--pretrain-encoder', type=int, default=0, help='number of epochs to pretrain encoder.')
 
-    parser.add_argument('-pv', '--prototype-vectors', type=int , nargs='+', default=[2, 3],
+    parser.add_argument('-pv', '--prototype-vectors', type=int , nargs='+', default=[4, 4, 2],
                         help='List of number of prototype vectors per category [#p1, #p2, ...]')
     parser.add_argument('--n-protos', type=int, default=2,
                         help='number of classes per categorical variable, i.e. number of prototypes per group')
     parser.add_argument('--proto-dim', type=int, default=32, help='dimensions of each prototype')
-    parser.add_argument('--extra-mlp-dim', type=int, default=4, help='dimensions of extra mlp')
-    parser.add_argument('--multiheads', action='store_true',
+    parser.add_argument('--extra-mlp-dim', type=int, default=1, help='dimensions of extra mlp')
+    parser.add_argument('--multiheads', action='store_true', default=True,
                         help='should multiple mlp heads be used each for one category??')
 
     parser.add_argument('--lin-enc-size', type=int, default=512, help='latent dimensions')
     parser.add_argument('--temperature', type=float, default=1., help='temperature of gumbel softmax')
+    parser.add_argument('--hack', action='store_true', help='use the original softmax temperature hack')
 
     parser.add_argument('--exp-name', type=str, default='', help='experiment name')
     parser.add_argument('--results-dir', type=str, default='results', help='results directory')
@@ -75,6 +83,7 @@ def _get_parser():
                              'list[[0,2], [2,4]]' )
     parser.add_argument('--pent-id', type=int, default=None, help='which prototype should encode the pentagon shape?')
     parser.add_argument('--circle-id', type=int, default=None, help='which prototype should encode the circle shape?')
+    parser.add_argument('--n-per-group', type=int, default=1000, help='how many epochs to learn per prototype group?')
     parser.add_argument('--wandb', action='store_true',
                         help='should results be logged to wandb???')
     return parser

@@ -13,7 +13,7 @@ from torch.nn.parameter import Parameter
 
 import experiments.ProtoLearning.utils as utils
 import experiments.ProtoLearning.data as data
-from experiments.ProtoLearning.models.icsn import iCSN
+from experiments.ProtoLearning.models.icsn_disc import iCSN
 from experiments.ProtoLearning.args import parse_args_as_dict
 from pytorch_lightning.loggers import WandbLogger
 
@@ -26,13 +26,15 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
     os.environ["WANDB_API_KEY"] =  "your_key_here"
 
     logger = WandbLogger(name=config['exp_name'], project= "XIConceptLearning", log_model= False)  if config['wandb'] else None
-    warmup_steps = cur_epoch * len(data_loader)
 
+    warmup_steps = cur_epoch * len(data_loader)
+    
     for e in range(cur_epoch, config['epochs']):
+        
         max_iter = len(data_loader)
         start = time.time()
         loss_dict = dict(
-            {'loss': 0, "proto_recon_loss": 0})
+            {'loss': 0, "proto_recon_loss": 0, "discriminator_loss": 0, "slot_loss": 0})
 
         torch.autograd.set_detect_anomaly(True)
         for i, batch in enumerate(data_loader):
@@ -46,26 +48,24 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             imgs, labels_one_hot, labels_id, shared_labels = batch
 
             imgs0 = imgs[0].to(config['device'])
-            imgs1 = imgs[1].to(config['device'])
-            imgs = (imgs0, imgs1)
-            # labels0_one_hot = labels_one_hot[0].to(config['device']).float()
-            # labels1_one_hot = labels_one_hot[1].to(config['device']).float()
-            # labels0_ids = labels_id[0].to(config['device']).float()
-            # labels1_ids = labels_id[1].to(config['device']).float()
             shared_labels = shared_labels.to(config['device'])
 
-            model.softmax_temp  = get_softmax_temp(e, config)
 
-            preds, proto_recons = model.forward(imgs, shared_labels)
+            model.softmax_temp = get_softmax_temp(e, config)
 
-            # reconstruciton loss
-            # recon_loss_z0_proto = F.mse_loss(proto_recons[0], imgs0)
-            # recon_loss_z1_proto = F.mse_loss(proto_recons[1], imgs1)
-            recon_loss_z0_swap_proto = F.mse_loss(proto_recons[2], imgs0)
-            recon_loss_z1_swap_proto = F.mse_loss(proto_recons[3], imgs1)
-            ave_recon_loss_proto = (recon_loss_z0_swap_proto + recon_loss_z1_swap_proto) / 2
+            preds, proto_recons, disc_real_pred, disc_fake_pred, max_vals = model.forward_single(imgs0, discriminator=True)
 
-            loss = config['lambda_recon_proto'] * ave_recon_loss_proto
+            # reconstruction loss
+            recon_loss_z0_proto = F.mse_loss(proto_recons, imgs0)
+            
+            # slot loss
+            slot_loss = max_vals - torch.max(max_vals)
+            slot_loss = torch.sum(slot_loss**2)
+            
+            #discriminator loss
+            disc_loss = discriminator_loss(disc_real_pred, disc_fake_pred)
+
+            loss = config['lambda_recon_proto'] * recon_loss_z0_proto + config['gamma_discriminator'] * disc_loss + config['gamma_slots'] * slot_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -74,7 +74,9 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             if config['lr_scheduler'] and warmup_steps > config['lr_scheduler_warmup_steps']:
                 scheduler.step()
 
-            loss_dict['proto_recon_loss'] += ave_recon_loss_proto.item() if config['lambda_recon_proto'] > 0. else 0.
+            loss_dict['proto_recon_loss'] += recon_loss_z0_proto.item() if config['lambda_recon_proto'] > 0. else 0.
+            loss_dict['discriminator_loss'] += disc_loss.item() if config['gamma_discriminator'] > 0. else 0.
+            loss_dict['slot_loss'] += slot_loss.item() if config['gamma_slots'] > 0. else 0.
             loss_dict['loss'] += loss.item()
 
         for key in loss_dict.keys():
@@ -88,7 +90,6 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
             if config['wandb']:
                 _log(logger, name="lr", value=cur_lr, epoch=e)
                 _log(logger, name="softmax_temp", value=model.softmax_temp, epoch=e)
-
             for key in loss_dict.keys():
                 writer.add_scalar(f'train/{key}', loss_dict[key], global_step=e)
                 if config['wandb']:
@@ -123,7 +124,7 @@ def train(model, data_loader, log_samples, optimizer, scheduler, writer, cur_epo
 
             print(f'SAVED - epoch {e} - imgs @ {config["img_dir"]} - model @ {config["model_dir"]}')
 
-def get_softmax_temp(epoch, config):
+def get_softmax_temp(epoch, config, hack=False):
     if config["hack"]:
         # legacy hack from initial paper
         if epoch >= 7000:
@@ -145,6 +146,11 @@ def get_softmax_temp(epoch, config):
     else:
         x = epoch / config["epochs"]
         return torch.exp(torch.tensor(-(16*x-1)))
+
+def discriminator_loss(disc_real_pred, disc_fake_pred):
+    labs_real = torch.ones_like(disc_real_pred, device=disc_real_pred.device)
+    labs_fake = torch.zeros_like(disc_fake_pred, device=disc_fake_pred.device)
+    return F.mse_loss(disc_real_pred, labs_real) + F.mse_loss(disc_fake_pred, labs_fake)
 
 def _log(logger, name, value, epoch):
     try:
@@ -219,7 +225,7 @@ def main(config):
         print(f"loading {config['ckpt_fp']} from epoch {cur_epoch} for further training")
 
     # optimizer setup
-    optimizer = torch.optim.Adam(_model.parameters(), lr=config['learning_rate'])
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, _model.parameters()), lr=config['learning_rate'])
 
     # learning rate scheduler
     scheduler = None

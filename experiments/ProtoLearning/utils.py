@@ -48,7 +48,7 @@ def freeze_enc(model):
             p.requires_grad = False
 
 
-def plot_prototypes(model, writer, logger, config, step=0):
+def plot_prototypes(model, writer, logger, config, step=0, group=None):
     """
     Visualize all mixtures of prototypes.
     :param model:
@@ -75,7 +75,10 @@ def plot_prototypes(model, writer, logger, config, step=0):
         comb_one_hot[range(n_comb), n_proto_vecs[group_id] + comb_proto_ids[:, group_id]] = 1.
 
     # forward one hot representation
-    proto_imgs = model.proto_decode(comb_one_hot).detach().cpu()
+    if group is not None:
+        proto_imgs = model.proto_decode_multiple(comb_one_hot, group)[-1].detach().cpu()
+    else:
+        proto_imgs = model.proto_decode(comb_one_hot).detach().cpu()
 
     fig, ax = plt.subplots(nrows=int(np.ceil(np.sqrt(n_comb))), ncols=int(np.ceil(np.sqrt(n_comb))))
     ax = ax.flatten()
@@ -112,7 +115,7 @@ def plot_prototypes(model, writer, logger, config, step=0):
     model.train()
 
 
-def plot_test_examples(log_samples, model, writer, logger, config, step=0):
+def plot_encoder_examples(log_samples, model, writer, config, logger=None, step=0):
     model.eval()
     # apply encoding and decoding over a small subset of the training set
     imgs, labels = log_samples
@@ -121,11 +124,76 @@ def plot_test_examples(log_samples, model, writer, logger, config, step=0):
 
     examples_to_show = len(imgs)
 
-    preds, imgs_proto_recon = model.forward_single(imgs)
+    recon = model.forward_autoencoder(imgs)
+
+    recons = recon.detach().cpu()
+    imgs = imgs.detach().cpu()
+
+    # compare original images to their reconstructions
+    n_rows = 2
+    f, a = plt.subplots(n_rows, examples_to_show, figsize=(examples_to_show, n_rows))
+
+    # set axis off for all
+    [axi.set_axis_off() for axi in a.ravel()]
+
+    a[0][0].text(0, -2, s='input', fontsize=10)
+    a[1][0].text(0,-2, s='recon proto', fontsize=10)
+
+    for i in range(examples_to_show):
+        a[0][i].imshow(imgs[i].permute(1, 2, 0).squeeze(),
+                       cmap='gray',
+                       interpolation='none')
+
+        # convert to RGB numpy array
+        recons_np = recons[i].permute(1, 2, 0).squeeze().numpy()
+        # convert -1 1 range to 0 255 range for plotting
+        recons_np = ((recons_np - recons_np.min())
+                          * (1 / (recons_np.max() - recons_np.min()) * 255)).astype('uint8')
+        a[1][i].imshow(recons_np,
+                       cmap='gray',
+                       interpolation='none')
+
+    if writer:
+        img_save_path = os.path.join(config['img_dir'], f'{step:05d}' + '_decoding_result' + '.png')
+        plt.savefig(img_save_path,
+                    transparent=True,
+                    bbox_inches='tight',
+                    pad_inches=0)
+        plt.close()
+
+        image = Image.open(img_save_path)
+        image = TF.to_tensor(image)
+        writer.add_image(f'pretrain_enc/decoding_result', image, global_step=step)
+        try:
+            logger.log_image(key=f'pretrain_enc/decoding_result', images=[image], step=step)
+        except Exception as e:
+            print(e)
+            pass
+
+    model.train()
+
+def plot_test_examples(log_samples, model, writer, config, logger=None, step=0, group_id=0):
+    model.eval()
+    # apply encoding and decoding over a small subset of the training set
+    imgs, labels = log_samples
+    imgs = imgs.to(config['device'])
+    labels = labels.to(config['device']).float()
+
+    examples_to_show = len(imgs)
+
+    if hasattr(model, 'train_group'):
+        preds, imgs_proto_recon = model.forward_single(imgs, group_id=group_id)
+    else:
+        preds, imgs_proto_recon = model.forward_single(imgs)
+
 
     # print(f"\nTest Preds: \n{np.round(preds.detach().cpu().numpy(), 2)} \n")
 
-    recons = imgs_proto_recon.detach().cpu()
+    if isinstance(imgs_proto_recon, list):
+        recons = imgs_proto_recon[-1].detach().cpu()
+    else:
+        recons = imgs_proto_recon.detach().cpu()
+
     imgs = imgs.detach().cpu()
     preds = preds.detach().cpu()
 

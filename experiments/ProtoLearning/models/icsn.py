@@ -91,6 +91,9 @@ class iCSN(nn.Module):
 			# protottypes are not learnable
 			self.proto_dict[group_id].weight.requires_grad = self.train_protos
 
+			if self.train_protos:
+				self.register_parameter(f"proto_dict:{group_id}:weight", self.proto_dict[group_id].weight)
+
 	# ------------------------------------------------------------------------------------------------ #
 	# fcts for forward passing
 
